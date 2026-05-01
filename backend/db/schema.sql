@@ -34,6 +34,7 @@ CREATE TABLE reservations (
   status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'past')),
   is_recurring BOOLEAN DEFAULT FALSE,
   recurring_group UUID REFERENCES recurring_groups(id),
+  grouped_id UUID,
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   last_modified_by UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -76,6 +77,7 @@ CREATE INDEX idx_reservations_status ON reservations(status);
 CREATE INDEX idx_reservations_start_time ON reservations(start_time);
 CREATE INDEX idx_reservations_created_by ON reservations(created_by);
 CREATE INDEX idx_reservations_responsible_id ON reservations(responsible_id);
+CREATE INDEX idx_reservations_grouped_id ON reservations(grouped_id) WHERE grouped_id IS NOT NULL;
 CREATE INDEX idx_calendar_events_date ON calendar_events(date);
 CREATE INDEX idx_audit_log_user_id ON audit_log(user_id);
 CREATE INDEX idx_audit_log_timestamp ON audit_log(timestamp);

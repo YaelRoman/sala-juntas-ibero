@@ -17,6 +17,10 @@ const Calendar = (() => {
   let _editable    = false;
   let _onDayClick         = null;
   let _onReservationClick = null;
+  let _selectable         = false;
+  let _onSelectionChange  = null;
+  let _onCommitSelection  = null;
+  let _highlightDate      = null;
 
   /* ════════════════════════════════════════
      INIT
@@ -35,6 +39,9 @@ const Calendar = (() => {
     _editable           = opts.editable            ?? false;
     _onDayClick         = opts.onDayClick          ?? null;
     _onReservationClick = opts.onReservationClick  ?? null;
+    _selectable         = opts.selectable          ?? false;
+    _onSelectionChange  = opts.onSelectionChange   ?? null;
+    _onCommitSelection  = opts.onCommitSelection   ?? null;
 
     const state = Store.getState();
     _year  = state.currentYear  ?? new Date().getFullYear();
@@ -76,9 +83,10 @@ const Calendar = (() => {
   /**
    * @param {Date} [dateInWeek] — cualquier fecha dentro de la semana deseada
    */
-  const renderWeek = (dateInWeek) => {
+  const renderWeek = (dateInWeek, highlightDate = null) => {
     _view      = 'week';
     _weekStart = _getMonday(dateInWeek ?? new Date());
+    if (highlightDate) _highlightDate = highlightDate;
 
     const titleEl = document.getElementById(_titleId);
     if (titleEl) {
@@ -95,10 +103,14 @@ const Calendar = (() => {
       reservations,
       holidays,
       editable:           _editable,
-      onSlotClick:        _onDayClick
+      selectable:         _selectable,
+      highlightDate:      _highlightDate,
+      onSlotClick:        (!_selectable && _onDayClick)
                             ? (dateStr, hourStr) => _onDayClick(dateStr, hourStr)
                             : null,
       onReservationClick: _onReservationClick,
+      onSelectionChange:  _onSelectionChange,
+      onCommitSelection:  _onCommitSelection,
     });
   };
 
@@ -168,6 +180,8 @@ const Calendar = (() => {
   const getCurrentYear  = () => _year;
   const getCurrentMonth = () => _month;
   const getCurrentView  = () => _view;
+  const getHighlightDate = () => _highlightDate;
+  const setHighlightDate = (d) => { _highlightDate = d; };
 
   /* ════════════════════════════════════════
      PRIVATE HELPERS
@@ -210,5 +224,7 @@ const Calendar = (() => {
     getCurrentYear,
     getCurrentMonth,
     getCurrentView,
+    getHighlightDate,
+    setHighlightDate,
   };
 })();

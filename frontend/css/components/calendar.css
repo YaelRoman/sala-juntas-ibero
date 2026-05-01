@@ -369,6 +369,55 @@
   z-index: 1;
 }
 
+/* ── BARRA DE SELECCIÓN MULTI-HORA ── */
+.cal-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-primary-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.cal-selection-bar.hidden { display: none; }
+
+.cal-selection-bar__count {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+}
+
+.cal-selection-bar__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-secondary-light);
+  flex: 1;
+  min-width: 0;
+}
+
+.cal-selection-bar__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .cal-selection-bar__hint { display: none; }
+}
+
+/* ── POPOVER DE FESTIVOS (inline en mes) ── */
+.holiday-popover { width: 240px; }
+
+.holiday-popover .form-control {
+  margin-top: 4px;
+  font-size: var(--font-size-sm);
+}
+
+.holiday-popover .cal-popup__label {
+  display: block;
+  margin-bottom: 2px;
+}
+
 /* ── LEYENDA ── */
 .cal-legend {
   display: flex;
@@ -485,7 +534,7 @@
 /* ── Cuerpo scrolleable ── */
 .cal-wk__body {
   display: flex;
-  padding-top: 10px;
+  padding-top: 5px;
 }
 
 /* ── Gutter de horas ── */
@@ -529,6 +578,7 @@
   box-sizing: border-box;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   transition: background var(--transition-fast);
+  user-select: none;
 }
 
 .cal-wk__slot.is-clickable {
@@ -539,6 +589,40 @@
 .cal-wk__slot.is-clickable:focus {
   background: var(--color-primary-bg);
   outline: none;
+}
+
+.cal-wk__slot.is-occupied {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(0,0,0,0.04),
+    rgba(0,0,0,0.04) 4px,
+    rgba(0,0,0,0.08) 4px,
+    rgba(0,0,0,0.08) 8px
+  );
+  cursor: not-allowed;
+}
+
+/* Slot seleccionado durante elección de horas */
+.cal-wk__slot.is-selected {
+  background: rgba(31, 119, 220, 0.18);
+  border-left: 3px solid var(--color-primary);
+  box-shadow: inset 0 0 0 1px rgba(31, 119, 220, 0.35);
+}
+
+.cal-wk__slot.is-selected:hover,
+.cal-wk__slot.is-selected:focus {
+  background: rgba(31, 119, 220, 0.28);
+}
+
+/* Día resaltado desde la vista mensual */
+.cal-wk__head-cell.is-highlight,
+.cal-wk__day-col.is-highlight {
+  background: var(--color-primary-bg);
+}
+
+.cal-wk__day-col.is-highlight {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
 /* ── Bloque de evento ── */

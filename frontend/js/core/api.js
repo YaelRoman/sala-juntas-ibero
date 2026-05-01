@@ -113,6 +113,26 @@ const API = (() => {
   const bulkCancelReservations = (ids) =>
     _request('DELETE', '/reservations/bulk', { ids });
 
+  const getWeekReservations = async (date) => {
+    const data = await _request('GET', `/reservations/week${_qs({ date })}`);
+    return {
+      weekStart: data?.weekStart,
+      reservations: Array.isArray(data?.reservations)
+        ? data.reservations.map(_normalizeReservation)
+        : [],
+    };
+  };
+
+  const createMultiReservation = async (payload) => {
+    const res = await _request('POST', '/reservations/multi', payload);
+    return {
+      grouped_id: res?.grouped_id ?? null,
+      reservations: Array.isArray(res?.reservations)
+        ? res.reservations.map(_normalizeReservation)
+        : [],
+    };
+  };
+
   // Calendar / Holidays
   const getHolidays = async () => {
     const data = await _request('GET', '/calendar/holidays');
@@ -165,6 +185,8 @@ const API = (() => {
     updateReservation,
     cancelReservation,
     bulkCancelReservations,
+    getWeekReservations,
+    createMultiReservation,
     getHolidays,
     createHoliday,
     deleteHoliday,

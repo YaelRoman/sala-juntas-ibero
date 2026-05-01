@@ -79,6 +79,157 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/reservations/week?date=YYYY-MM-DD - Get all reservations in the week containing the given date (Mon-Sun)
+router.get('/week', async (req, res) => {
+  const { date } = req.query;
+
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'date (YYYY-MM-DD) required' });
+  }
+
+  // Compute Monday of the week containing `date` and the Monday of the next week.
+  const ref = new Date(`${date}T00:00:00Z`);
+  const dow = ref.getUTCDay();                    // 0=Sun … 6=Sat
+  const diffToMonday = dow === 0 ? -6 : 1 - dow;
+  const weekStart = new Date(ref);
+  weekStart.setUTCDate(ref.getUTCDate() + diffToMonday);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 7);
+
+  try {
+    const result = await pool.query(
+      `SELECT * FROM reservations
+       WHERE start_time >= $1 AND start_time < $2
+       ORDER BY start_time ASC`,
+      [weekStart.toISOString(), weekEnd.toISOString()]
+    );
+    res.json({
+      weekStart: weekStart.toISOString().slice(0, 10),
+      reservations: result.rows
+    });
+  } catch (err) {
+    console.error('Error fetching week reservations:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/reservations/multi - Create multiple reservations in one logical booking (secretaria only)
+router.post('/multi', requireRole('secretaria'), async (req, res) => {
+  const { intervals, responsible_id, area, observations } = req.body || {};
+
+  if (!Array.isArray(intervals) || intervals.length === 0) {
+    return res.status(400).json({ error: 'intervals[] is required' });
+  }
+  if (!responsible_id || !area) {
+    return res.status(400).json({ error: 'responsible_id and area are required' });
+  }
+  for (const it of intervals) {
+    if (!it?.start_time || !it?.end_time) {
+      return res.status(400).json({ error: 'each interval needs start_time and end_time' });
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Look up responsible user
+    const userResult = await client.query(
+      'SELECT id, name, email FROM users WHERE id = $1 AND active = true',
+      [responsible_id]
+    );
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Responsible user not found' });
+    }
+    const responsible = userResult.rows[0];
+
+    // Conflict check across all intervals (incl. against each other)
+    for (let i = 0; i < intervals.length; i++) {
+      const a = intervals[i];
+      // Self-overlap within payload
+      for (let j = i + 1; j < intervals.length; j++) {
+        const b = intervals[j];
+        if (a.start_time < b.end_time && a.end_time > b.start_time) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Selected intervals overlap each other' });
+        }
+      }
+      // Overlap with existing active reservations
+      const overlap = await client.query(
+        `SELECT id, responsible_name, start_time, end_time
+         FROM reservations
+         WHERE status = 'active'
+         AND start_time < $2 AND end_time > $1
+         LIMIT 1`,
+        [a.start_time, a.end_time]
+      );
+      if (overlap.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'overlap',
+          message: 'Time slot is already booked',
+          conflictWith: overlap.rows[0],
+          intervalIndex: i,
+        });
+      }
+    }
+
+    // Generate one grouped_id when there are 2+ intervals
+    const groupedRow = intervals.length > 1
+      ? await client.query('SELECT gen_random_uuid() AS id')
+      : null;
+    const groupedId = groupedRow ? groupedRow.rows[0].id : null;
+
+    const created = [];
+    for (const it of intervals) {
+      const ins = await client.query(
+        `INSERT INTO reservations (
+          responsible_id, responsible_name, area, start_time, end_time,
+          observations, grouped_id, created_by, last_modified_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
+        [
+          responsible.id,
+          responsible.name,
+          area,
+          it.start_time,
+          it.end_time,
+          (observations ?? '').trim() || null,
+          groupedId,
+          req.user.id,
+          req.user.id,
+        ]
+      );
+      created.push(ins.rows[0]);
+
+      await client.query(
+        `INSERT INTO audit_log (user_id, action, entity, entity_id)
+         VALUES ($1, $2, $3, $4)`,
+        [req.user.id, 'create_reservation', 'reservations', ins.rows[0].id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // Confirmation email per interval (non-blocking)
+    if (responsible.email) {
+      for (const r of created) {
+        const { subject, html } = reservationCreatedEmail(r);
+        sendEmail(responsible.email, subject, html);
+      }
+    }
+
+    res.status(201).json({ reservations: created, grouped_id: groupedId });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Error creating multi reservation:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/reservations/:id - Get single reservation
 router.get('/:id', async (req, res) => {
   const { id } = req.params;

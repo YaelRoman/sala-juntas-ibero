@@ -167,6 +167,18 @@
             </div>
           </div>
 
+          <!-- Barra de selección semanal (visible sólo cuando hay selección) -->
+          <div class="cal-selection-bar hidden" id="cal-selection-bar" role="region" aria-live="polite">
+            <span class="cal-selection-bar__count" id="cal-selection-count">0 horas seleccionadas</span>
+            <span class="cal-selection-bar__hint">Arrastra o usa Ctrl+Click para seleccionar varias horas</span>
+            <div class="cal-selection-bar__actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="cal-selection-clear">Limpiar</button>
+              <button type="button" class="btn btn-primary btn-sm" id="cal-selection-book">
+                Reservar selección
+              </button>
+            </div>
+          </div>
+
           <!-- Cuerpo del calendario (renderizado por JS) -->
           <div id="calendar-body">
             <!-- CalendarGrid.render() escribe aquí -->
@@ -242,10 +254,13 @@
 <script src="js/components/calendar-grid.js"></script>
 <script src="js/components/calendar-week.js"></script>
 <script src="js/components/modal.js"></script>
+<script src="js/components/reservation-modal.js"></script>
 <script src="js/modules/calendar.js"></script>
+<script src="js/modules/ai.js"></script>
 <script src="js/modules/notifications.js"></script>
 <script src="js/modules/auth.js"></script>
 <script src="js/modules/reservations.js"></script>
+<script src="js/modules/holidays.js"></script>
 <script src="js/modules/recurring.js"></script>
 <script src="js/pages/dashboard.js"></script>
 

@@ -93,20 +93,32 @@ function _renderStats() {
 /* ── CALENDARIO ── */
 function _initCalendar() {
   const user = Store.getUser();
+  const isSecretary = user?.role === 'secretaria';
+
   Calendar.init({
     containerId:        'calendar-body',
     titleId:            'cal-month-title',
-    editable:           user?.role === 'secretaria',
+    editable:           isSecretary,
+    selectable:         isSecretary,
     onDayClick:         _onDayClick,
     onReservationClick: _onReservationClick,
+    onSelectionChange:  _onSelectionChange,
+    onCommitSelection:  _openReservationModalFromSelection,
   });
+
+  if (isSecretary) {
+    _initHolidayMarkingOnMonthly();
+  }
 }
 
-/* ── CLICK EN DÍA / SLOT ── */
-function _onDayClick(dateStr, hourStr) {
+/* ── CLICK EN DÍA EN VISTA MENSUAL ── */
+/* Cambia a la vista semanal del día seleccionado y resalta la columna. */
+function _onDayClick(dateStr) {
+  if (!dateStr) return;
   Store.setState({ selectedDate: dateStr });
-  const params = hourStr ? `?date=${dateStr}&time=${hourStr}` : `?date=${dateStr}`;
-  window.location.href = `reservacion.html${params}`;
+  Calendar.setHighlightDate(dateStr);
+  _setViewActive('week');
+  Calendar.renderWeek(new Date(`${dateStr}T00:00:00`), dateStr);
 }
 
 /* ── CLICK EN RESERVACIÓN ── */
@@ -344,21 +356,212 @@ function _initEventListeners() {
   // Toggle vista mes/semana
   document.getElementById('view-month')?.addEventListener('click', () => {
     _setViewActive('month');
-    // When switching back from week view, restore the month that was active
+    Calendar.setHighlightDate(null);
+    CalendarWeek.clearSelection();
     Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    _hideSelectionBar();
   });
   document.getElementById('view-week')?.addEventListener('click', () => {
     _setViewActive('week');
+    CalendarWeek.clearSelection();
     Calendar.renderWeek(new Date());
   });
 
-  // Nueva reservación — topbar y FAB
+  // Selección semanal — botones de la barra
+  document.getElementById('cal-selection-clear')?.addEventListener('click', () => {
+    CalendarWeek.clearSelection();
+  });
+  document.getElementById('cal-selection-book')?.addEventListener('click', () => {
+    _openReservationModalFromSelection(CalendarWeek.getSelection());
+  });
+
+  // Nueva reservación — topbar y FAB (sin selección previa)
   ['topbar-nueva-reserva', 'fab-nueva'].forEach(id => {
     document.getElementById(id)?.addEventListener('click', (e) => {
       e.preventDefault();
       window.location.href = 'reservacion.html';
     });
   });
+}
+
+/* ════════════════════════════════════════
+   SELECCIÓN MULTI-HORA + MODAL DE RESERVACIÓN
+   ════════════════════════════════════════ */
+function _onSelectionChange(selected) {
+  const bar    = document.getElementById('cal-selection-bar');
+  const countEl = document.getElementById('cal-selection-count');
+  const inWeek = Calendar.getCurrentView() === 'week';
+  if (!bar) return;
+
+  if (!inWeek || !selected.length) {
+    _hideSelectionBar();
+    return;
+  }
+  bar.classList.remove('hidden');
+  countEl.textContent = `${selected.length} hora${selected.length !== 1 ? 's' : ''} seleccionada${selected.length !== 1 ? 's' : ''}`;
+}
+
+function _hideSelectionBar() {
+  document.getElementById('cal-selection-bar')?.classList.add('hidden');
+}
+
+function _openReservationModalFromSelection() {
+  const intervals = CalendarWeek.getIntervals();
+  if (!intervals.length) {
+    Toast?.show('Selecciona al menos una hora antes de reservar.', 'warning');
+    return;
+  }
+  ReservationModal.open({
+    intervals,
+    onSaved: async () => {
+      // Refrescar datos del store y re-renderizar
+      try {
+        const reservations = await API.getReservations();
+        Store.setState({ reservations });
+      } catch (err) {
+        console.error('Refresh after save failed:', err);
+      }
+      CalendarWeek.clearSelection();
+      _renderStats();
+      _renderUpcoming();
+      // Re-render la vista activa
+      if (Calendar.getCurrentView() === 'week') {
+        Calendar.renderWeek(new Date(`${intervals[0].date}T00:00:00`), Calendar.getHighlightDate());
+      } else {
+        Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+      }
+    },
+  });
+}
+
+/* ════════════════════════════════════════
+   MARCADO INLINE DE FESTIVOS / CIERRES
+   Click derecho sobre un día en vista mensual abre un menú contextual.
+   ════════════════════════════════════════ */
+function _initHolidayMarkingOnMonthly() {
+  const body = document.getElementById('calendar-body');
+  if (!body) return;
+
+  body.addEventListener('contextmenu', (e) => {
+    // Sólo en vista mensual
+    if (Calendar.getCurrentView() !== 'month') return;
+    const cell = e.target.closest('.cal-day:not(.is-other-month)');
+    if (!cell) return;
+
+    // Las celdas marcadas no llevan data-date; intentamos leer del aria-label como fallback
+    let date = cell.dataset.date;
+    if (!date) {
+      // Reconstruir desde el número del día visible + año/mes actuales del Calendar
+      const num = parseInt(cell.querySelector('.cal-day__number')?.textContent ?? '', 10);
+      if (!num) return;
+      const y = Calendar.getCurrentYear();
+      const m = Calendar.getCurrentMonth();
+      date = `${y}-${String(m+1).padStart(2,'0')}-${String(num).padStart(2,'0')}`;
+    }
+
+    e.preventDefault();
+    _openHolidayPopover(cell, date);
+  });
+}
+
+function _openHolidayPopover(anchorEl, dateStr) {
+  // Cerrar popovers previos
+  document.getElementById('holiday-popover')?.remove();
+
+  const existing = (Store.getState().holidays || []).find(h => h.date === dateStr) || null;
+  const rect = anchorEl.getBoundingClientRect();
+
+  const pop = document.createElement('div');
+  pop.id = 'holiday-popover';
+  pop.className = 'cal-popup holiday-popover';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-modal', 'false');
+  pop.setAttribute('aria-label', 'Marcar fecha como festivo o cierre');
+
+  pop.innerHTML = `
+    <div class="cal-popup__header">
+      <span class="cal-popup__title">${Utils.formatDateShort(dateStr)}</span>
+      <button class="cal-popup__close" id="holiday-pop-close" aria-label="Cerrar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="cal-popup__body">
+      ${existing ? `
+        <div class="cal-popup__row">
+          <span class="badge ${existing.type === 'holiday' ? 'badge-warning' : 'badge-neutral'}">
+            ${existing.type === 'holiday' ? 'Día festivo' : 'Cierre institucional'}
+          </span>
+          <span class="cal-popup__value">${Utils.escapeHTML(existing.name)}</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="holiday-pop-remove" style="width:100%;margin-top:var(--space-2);">
+          Quitar marca
+        </button>
+      ` : `
+        <label class="cal-popup__label" for="holiday-pop-name">Nombre</label>
+        <input type="text" id="holiday-pop-name" class="form-control"
+               placeholder="Ej: Día del trabajo" maxlength="200" />
+        <label class="cal-popup__label" for="holiday-pop-type" style="margin-top:var(--space-2);">Tipo</label>
+        <select id="holiday-pop-type" class="form-control">
+          <option value="holiday">Día festivo</option>
+          <option value="closure">Cierre institucional</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="holiday-pop-save" style="width:100%;margin-top:var(--space-3);">
+          Marcar
+        </button>
+      `}
+    </div>`;
+
+  document.body.appendChild(pop);
+
+  // Posicionar
+  const pw = 240;
+  let left = rect.left;
+  let top  = rect.bottom + 4;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (top + pop.offsetHeight > window.innerHeight - 8) top = rect.top - pop.offsetHeight - 4;
+  pop.style.left = `${Math.max(8, left)}px`;
+  pop.style.top  = `${Math.max(8, top)}px`;
+
+  // Wire eventos
+  const closePop = () => pop.remove();
+  document.getElementById('holiday-pop-close')?.addEventListener('click', closePop);
+
+  document.getElementById('holiday-pop-save')?.addEventListener('click', async () => {
+    const name = document.getElementById('holiday-pop-name').value.trim();
+    const type = document.getElementById('holiday-pop-type').value;
+    if (!name) {
+      Toast?.show('Escribe un nombre para la fecha.', 'warning');
+      return;
+    }
+    const result = await Holidays.add({ date: dateStr, name, type });
+    if (result.success) {
+      Toast?.show('Fecha marcada.', 'success');
+      closePop();
+      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    } else {
+      Toast?.show(result.error || 'Error al marcar la fecha.', 'error');
+    }
+  });
+
+  document.getElementById('holiday-pop-remove')?.addEventListener('click', async () => {
+    const ok = await Holidays.remove(existing.id);
+    if (ok) {
+      Toast?.show('Marca eliminada.', 'success');
+      closePop();
+      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    } else {
+      Toast?.show('No se pudo eliminar.', 'error');
+    }
+  });
+
+  // Cerrar al hacer click fuera o ESC
+  const onKey = (e) => { if (e.key === 'Escape') { closePop(); document.removeEventListener('keydown', onKey); } };
+  const onOutside = (e) => { if (!pop.contains(e.target)) { closePop(); document.removeEventListener('click', onOutside); } };
+  document.addEventListener('keydown', onKey);
+  setTimeout(() => document.addEventListener('click', onOutside), 50);
 }
 
 function _setViewActive(view) {
