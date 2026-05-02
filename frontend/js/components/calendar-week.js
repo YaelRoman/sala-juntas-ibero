@@ -65,7 +65,8 @@ const CalendarWeek = (() => {
 
     const days       = _buildDays(weekStart);
     const todayStr   = Utils.today();
-    const holidaySet = new Set(holidays.map(h => h.date));
+    const holidayMap = new Map(holidays.map(h => [h.date, h]));
+    const holidaySet = new Set(holidayMap.keys());
 
     // Limpiar selección de slots fuera de la semana visible (no de esta semana)
     const visibleDates = new Set(days.map(d => d.iso));
@@ -128,10 +129,10 @@ const CalendarWeek = (() => {
 
     container.innerHTML = `
       <div class="cal-wk" role="grid" aria-label="Vista semanal">
-        ${_buildHeader(days, todayStr, holidaySet, highlightDate)}
+        ${_buildHeader(days, todayStr, holidayMap, highlightDate)}
         <div class="cal-wk__body">
           ${_buildGutter()}
-          ${days.map(d => _buildDayCol(d, resByDate[d.iso] || [], holidaySet, editable, todayStr, highlightDate)).join('')}
+          ${days.map(d => _buildDayCol(d, resByDate[d.iso] || [], holidayMap, editable, todayStr, highlightDate)).join('')}
         </div>
       </div>`;
 
@@ -157,22 +158,29 @@ const CalendarWeek = (() => {
   };
 
   /* ── HEADER ── */
-  const _buildHeader = (days, todayStr, holidaySet, highlightDate) => {
+  const _buildHeader = (days, todayStr, holidayMap, highlightDate) => {
     const cells = days.map(d => {
       const isToday     = d.iso === todayStr;
       const isHighlight = d.iso === highlightDate;
+      const hol         = holidayMap.get(d.iso);
       const cls = [
         'cal-wk__head-cell',
-        isToday              ? 'is-today'     : '',
-        isHighlight          ? 'is-highlight' : '',
-        holidaySet.has(d.iso)? 'is-holiday'   : '',
-        d.isWeekend          ? 'is-weekend'   : '',
+        isToday                       ? 'is-today'     : '',
+        isHighlight                   ? 'is-highlight' : '',
+        hol?.type === 'holiday'       ? 'is-holiday'   : '',
+        hol?.type === 'closure'       ? 'is-closure'   : '',
+        d.isWeekend                   ? 'is-weekend'   : '',
       ].filter(Boolean).join(' ');
+
+      const holLabel = hol
+        ? `<span class="cal-wk__holiday-label cal-wk__holiday-label--${hol.type}">${Utils.escapeHTML(Utils.truncate(hol.name, 14))}</span>`
+        : '';
 
       return `
         <div class="${cls}" role="columnheader" aria-label="${d.abbr} ${d.day}">
           <span class="cal-wk__dow">${d.abbr}</span>
           <span class="cal-wk__daynum${isToday ? ' is-today' : ''}">${d.day}</span>
+          ${holLabel}
         </div>`;
     }).join('');
 
@@ -197,13 +205,16 @@ const CalendarWeek = (() => {
   };
 
   /* ── COLUMNA DE DÍA ── */
-  const _buildDayCol = (d, reservations, holidaySet, editable, todayStr, highlightDate) => {
-    const isDisabled = d.isWeekend || holidaySet.has(d.iso);
+  const _buildDayCol = (d, reservations, holidayMap, editable, todayStr, highlightDate) => {
+    const hol        = holidayMap.get(d.iso);
+    const isDisabled = d.isWeekend || !!hol;
     const cls = [
       'cal-wk__day-col',
-      d.iso === todayStr     ? 'is-today'     : '',
-      d.iso === highlightDate? 'is-highlight' : '',
-      isDisabled             ? 'is-disabled'  : '',
+      d.iso === todayStr      ? 'is-today'     : '',
+      d.iso === highlightDate ? 'is-highlight' : '',
+      isDisabled              ? 'is-disabled'  : '',
+      hol?.type === 'holiday' ? 'is-holiday'   : '',
+      hol?.type === 'closure' ? 'is-closure'   : '',
     ].filter(Boolean).join(' ');
 
     let slots = '';
@@ -251,7 +262,7 @@ const CalendarWeek = (() => {
 
     const blocks = reservations.map(r => _buildEvent(r)).join('');
 
-    return `<div class="${cls}" style="height:${TOTAL_H}px;" role="gridcell">${slots}${blocks}</div>`;
+    return `<div class="${cls}" style="height:${TOTAL_H}px;" role="gridcell" data-date="${d.iso}">${slots}${blocks}</div>`;
   };
 
   /* ── BLOQUE DE EVENTO ── */

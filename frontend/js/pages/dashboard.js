@@ -107,7 +107,7 @@ function _initCalendar() {
   });
 
   if (isSecretary) {
-    _initHolidayMarkingOnMonthly();
+    _initContextMenus();
   }
 }
 
@@ -435,32 +435,112 @@ function _openReservationModalFromSelection() {
 }
 
 /* ════════════════════════════════════════
-   MARCADO INLINE DE FESTIVOS / CIERRES
-   Click derecho sobre un día en vista mensual abre un menú contextual.
+   MENÚS CONTEXTUALES (click derecho)
+   Vista mensual  → popover de festivo/cierre
+   Vista semanal  → menú con 2 opciones
    ════════════════════════════════════════ */
-function _initHolidayMarkingOnMonthly() {
+function _initContextMenus() {
   const body = document.getElementById('calendar-body');
   if (!body) return;
 
   body.addEventListener('contextmenu', (e) => {
-    // Sólo en vista mensual
-    if (Calendar.getCurrentView() !== 'month') return;
-    const cell = e.target.closest('.cal-day:not(.is-other-month)');
-    if (!cell) return;
+    const view = Calendar.getCurrentView();
 
-    // Las celdas marcadas no llevan data-date; intentamos leer del aria-label como fallback
-    let date = cell.dataset.date;
-    if (!date) {
-      // Reconstruir desde el número del día visible + año/mes actuales del Calendar
-      const num = parseInt(cell.querySelector('.cal-day__number')?.textContent ?? '', 10);
-      if (!num) return;
-      const y = Calendar.getCurrentYear();
-      const m = Calendar.getCurrentMonth();
-      date = `${y}-${String(m+1).padStart(2,'0')}-${String(num).padStart(2,'0')}`;
+    if (view === 'month') {
+      const cell = e.target.closest('.cal-day:not(.is-other-month)');
+      if (!cell) return;
+
+      let date = cell.dataset.date;
+      if (!date) {
+        const num = parseInt(cell.querySelector('.cal-day__number')?.textContent ?? '', 10);
+        if (!num) return;
+        const y = Calendar.getCurrentYear();
+        const m = Calendar.getCurrentMonth();
+        date = `${y}-${String(m+1).padStart(2,'0')}-${String(num).padStart(2,'0')}`;
+      }
+      e.preventDefault();
+      _openHolidayPopover(cell, date);
+      return;
     }
 
-    e.preventDefault();
-    _openHolidayPopover(cell, date);
+    if (view === 'week') {
+      const col = e.target.closest('.cal-wk__day-col[data-date]');
+      if (!col) return;
+      const date = col.dataset.date;
+      e.preventDefault();
+      _openWeekContextMenu(date, e.clientX, e.clientY);
+    }
+  });
+}
+
+function _closeWeekContextMenu() {
+  document.getElementById('wk-ctx-menu')?.remove();
+}
+
+function _openWeekContextMenu(dateStr, x, y) {
+  _closeWeekContextMenu();
+  document.getElementById('holiday-popover')?.remove();
+
+  const existing = (Store.getState().holidays || []).find(h => h.date === dateStr);
+  const holidayLabel = existing ? 'Quitar marca de festivo' : 'Marcar como festivo';
+
+  const menu = document.createElement('div');
+  menu.id = 'wk-ctx-menu';
+  menu.className = 'wk-ctx-menu';
+  menu.innerHTML = `
+    <button class="wk-ctx-menu__item" id="wk-ctx-monthly">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      Ver en vista mensual
+    </button>
+    <button class="wk-ctx-menu__item ${existing ? 'wk-ctx-menu__item--danger' : ''}" id="wk-ctx-holiday">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        ${existing
+          ? '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>'
+          : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}
+      </svg>
+      ${holidayLabel}
+    </button>`;
+
+  document.body.appendChild(menu);
+
+  // Position at cursor, flip if overflowing
+  const mw = 220, mh = 80;
+  const left = x + mw > window.innerWidth  - 8 ? x - mw : x;
+  const top  = y + mh > window.innerHeight - 8 ? y - mh : y;
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top  = `${Math.max(8, top)}px`;
+
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('mousedown', onOutside);
+  };
+  const onKey     = (e) => { if (e.key === 'Escape') close(); };
+  const onOutside = (e) => { if (!menu.contains(e.target)) close(); };
+  document.addEventListener('keydown', onKey);
+  setTimeout(() => document.addEventListener('mousedown', onOutside), 50);
+
+  document.getElementById('wk-ctx-monthly').addEventListener('click', () => {
+    close();
+    const [y, m] = dateStr.split('-').map(Number);
+    _setViewActive('month');
+    Calendar.setHighlightDate(dateStr);
+    CalendarWeek.clearSelection();
+    _hideSelectionBar();
+    Calendar.renderMonth(y, m - 1);
+  });
+
+  document.getElementById('wk-ctx-holiday').addEventListener('click', () => {
+    close();
+    // Use the day column element as anchor for the popover
+    const col = document.querySelector(`.cal-wk__day-col[data-date="${dateStr}"]`);
+    _openHolidayPopover(col || document.getElementById('calendar-body'), dateStr);
   });
 }
 
@@ -576,6 +656,14 @@ function _openHolidayPopover(anchorEl, dateStr) {
   const closePop = () => pop.remove();
   document.getElementById('holiday-pop-close')?.addEventListener('click', closePop);
 
+  const _refreshCalendar = (date) => {
+    if (Calendar.getCurrentView() === 'week') {
+      Calendar.renderWeek(new Date(`${date}T00:00:00`), Calendar.getHighlightDate());
+    } else {
+      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    }
+  };
+
   document.getElementById('holiday-pop-save')?.addEventListener('click', async () => {
     const name = document.getElementById('holiday-pop-name').value.trim();
     const type = pop.querySelector('input[name="holiday-pop-type"]:checked')?.value ?? 'holiday';
@@ -587,7 +675,7 @@ function _openHolidayPopover(anchorEl, dateStr) {
     if (result.success) {
       Toast?.show('Fecha marcada.', 'success');
       closePop();
-      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+      _refreshCalendar(dateStr);
     } else {
       Toast?.show(result.error || 'Error al marcar la fecha.', 'error');
     }
@@ -598,7 +686,7 @@ function _openHolidayPopover(anchorEl, dateStr) {
     if (ok) {
       Toast?.show('Marca eliminada.', 'success');
       closePop();
-      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+      _refreshCalendar(dateStr);
     } else {
       Toast?.show('No se pudo eliminar.', 'error');
     }
