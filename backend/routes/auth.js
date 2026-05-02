@@ -1,10 +1,22 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const pool = require('../db/pool');
 const { sign } = require('../utils/jwt');
 const auth = require('../middleware/auth');
 const { sendEmail, passwordResetEmail } = require('../utils/mailer');
+
+// 5 attempts per 15 min per IP. skipSuccessfulRequests means a legit user
+// fat-fingering once doesn't burn quota — only failures count.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many attempts. Try again in 15 minutes.' },
+});
 
 const RESET_TOKEN_TTL_MIN = 60;
 
@@ -15,7 +27,7 @@ function _hashToken(token) {
 const router = express.Router();
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -45,9 +57,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Update last_login
+    // Update last_login and invalidate any outstanding password reset token
     await pool.query(
-      'UPDATE users SET last_login = NOW() WHERE id = $1',
+      `UPDATE users
+          SET last_login = NOW(),
+              reset_token_hash = NULL,
+              reset_token_expires = NULL
+        WHERE id = $1`,
       [user.id]
     );
 
@@ -82,7 +98,7 @@ router.post('/logout', auth, (req, res) => {
 });
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', authLimiter, async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
@@ -155,7 +171,7 @@ router.get('/reset-password/validate', async (req, res) => {
 });
 
 // POST /api/auth/reset-password { token, password }
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', authLimiter, async (req, res) => {
   const { token, password } = req.body || {};
 
   if (!token || !password) {

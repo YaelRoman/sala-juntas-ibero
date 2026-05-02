@@ -16,6 +16,17 @@ const transporter = _enabled
 
 const TZ = process.env.APP_TIMEZONE || 'America/Mexico_City';
 
+// Escape user-controlled values before interpolating them into HTML email bodies.
+function _esc(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function _formatDate(value) {
   return new Date(value).toLocaleDateString('es-MX', {
     dateStyle: 'full',
@@ -48,11 +59,11 @@ function _reservationTable(reservation, includeObservations = true) {
   const end   = _formatTime(reservation.end_time);
   return `
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      <tr><td style="padding:6px 0;color:#555;">Responsable</td><td style="padding:6px 0;font-weight:600;">${reservation.responsible_name}</td></tr>
-      <tr><td style="padding:6px 0;color:#555;">Área</td><td style="padding:6px 0;">${reservation.area}</td></tr>
+      <tr><td style="padding:6px 0;color:#555;">Responsable</td><td style="padding:6px 0;font-weight:600;">${_esc(reservation.responsible_name)}</td></tr>
+      <tr><td style="padding:6px 0;color:#555;">Área</td><td style="padding:6px 0;">${_esc(reservation.area)}</td></tr>
       <tr><td style="padding:6px 0;color:#555;">Fecha</td><td style="padding:6px 0;">${date}</td></tr>
       <tr><td style="padding:6px 0;color:#555;">Horario</td><td style="padding:6px 0;">${start} – ${end}</td></tr>
-      ${includeObservations && reservation.observations ? `<tr><td style="padding:6px 0;color:#555;">Observaciones</td><td style="padding:6px 0;">${reservation.observations}</td></tr>` : ''}
+      ${includeObservations && reservation.observations ? `<tr><td style="padding:6px 0;color:#555;">Observaciones</td><td style="padding:6px 0;">${_esc(reservation.observations)}</td></tr>` : ''}
     </table>`;
 }
 
@@ -87,7 +98,7 @@ function reservationCreatedEmail(reservation) {
 
 function reservationUpdatedEmail(reservation, changes = []) {
   const changesHtml = changes.length
-    ? `<p style="font-size:13px;color:#555;">Campos modificados: <strong>${changes.join(', ')}</strong>.</p>`
+    ? `<p style="font-size:13px;color:#555;">Campos modificados: <strong>${_esc(changes.join(', '))}</strong>.</p>`
     : '';
   return {
     subject: `Reservación actualizada — Sala de Juntas Ibero`,
@@ -123,14 +134,14 @@ function welcomeEmail(user, loginUrl) {
   return {
     subject: `Bienvenido — Sala de Juntas Ibero`,
     html: _layout('#ef3e42', 'Tu cuenta ha sido creada',
-      `<p>Hola <strong>${user.name}</strong>,</p>
+      `<p>Hola <strong>${_esc(user.name)}</strong>,</p>
        <p>Se ha creado una cuenta para ti en el sistema de Reservación de Sala de Juntas de la Universidad Iberoamericana.</p>
        <table style="width:100%;border-collapse:collapse;font-size:14px;">
-         <tr><td style="padding:6px 0;color:#555;">Correo</td><td style="padding:6px 0;font-weight:600;">${user.email}</td></tr>
-         <tr><td style="padding:6px 0;color:#555;">Rol</td><td style="padding:6px 0;">${user.role}</td></tr>
+         <tr><td style="padding:6px 0;color:#555;">Correo</td><td style="padding:6px 0;font-weight:600;">${_esc(user.email)}</td></tr>
+         <tr><td style="padding:6px 0;color:#555;">Rol</td><td style="padding:6px 0;">${_esc(user.role)}</td></tr>
        </table>
        <p style="margin-top:16px;">La contraseña temporal te fue proporcionada por la persona que creó tu cuenta.</p>
-       <a href="${loginUrl}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#ef3e42;color:white;text-decoration:none;border-radius:6px;font-weight:600;">
+       <a href="${_esc(loginUrl)}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#ef3e42;color:white;text-decoration:none;border-radius:6px;font-weight:600;">
          Iniciar sesión
        </a>`),
   };
@@ -140,8 +151,8 @@ function passwordChangedEmail(user) {
   return {
     subject: `Tu contraseña fue cambiada — Sala de Juntas Ibero`,
     html: _layout('#e65100', 'Tu contraseña fue cambiada',
-      `<p>Hola <strong>${user.name}</strong>,</p>
-       <p>La contraseña de tu cuenta (<strong>${user.email}</strong>) acaba de ser modificada.</p>
+      `<p>Hola <strong>${_esc(user.name)}</strong>,</p>
+       <p>La contraseña de tu cuenta (<strong>${_esc(user.email)}</strong>) acaba de ser modificada.</p>
        <p style="font-size:13px;color:#555;">Si tú no realizaste este cambio, contacta inmediatamente a la administración del sistema.</p>`),
   };
 }
@@ -150,8 +161,8 @@ function accountDeactivatedEmail(user) {
   return {
     subject: `Tu cuenta fue desactivada — Sala de Juntas Ibero`,
     html: _layout('#555555', 'Cuenta desactivada',
-      `<p>Hola <strong>${user.name}</strong>,</p>
-       <p>Tu cuenta (<strong>${user.email}</strong>) ha sido desactivada y ya no podrás iniciar sesión.</p>
+      `<p>Hola <strong>${_esc(user.name)}</strong>,</p>
+       <p>Tu cuenta (<strong>${_esc(user.email)}</strong>) ha sido desactivada y ya no podrás iniciar sesión.</p>
        <p style="font-size:13px;color:#555;">Si crees que esto es un error, contacta a la administración del sistema.</p>`),
   };
 }

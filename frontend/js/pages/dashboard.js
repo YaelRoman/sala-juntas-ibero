@@ -479,8 +479,19 @@ function _openHolidayPopover(anchorEl, dateStr) {
   pop.setAttribute('aria-label', 'Marcar fecha como festivo o cierre');
 
   pop.innerHTML = `
-    <div class="cal-popup__header">
-      <span class="cal-popup__title">${Utils.formatDateShort(dateStr)}</span>
+    <div class="cal-popup__header hpop__header">
+      <div class="hpop__header-icon" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </div>
+      <div class="hpop__header-text">
+        <span class="cal-popup__title">${Utils.formatDateShort(dateStr)}</span>
+        <span class="hpop__header-sub">${existing ? (existing.type === 'holiday' ? 'Día festivo' : 'Cierre institucional') : 'Marcar fecha'}</span>
+      </div>
       <button class="cal-popup__close" id="holiday-pop-close" aria-label="Cerrar">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -488,28 +499,59 @@ function _openHolidayPopover(anchorEl, dateStr) {
         </svg>
       </button>
     </div>
-    <div class="cal-popup__body">
+    <div class="cal-popup__body hpop__body">
       ${existing ? `
-        <div class="cal-popup__row">
-          <span class="badge ${existing.type === 'holiday' ? 'badge-warning' : 'badge-neutral'}">
-            ${existing.type === 'holiday' ? 'Día festivo' : 'Cierre institucional'}
-          </span>
-          <span class="cal-popup__value">${Utils.escapeHTML(existing.name)}</span>
+        <div class="hpop__existing">
+          <div class="hpop__existing-name">${Utils.escapeHTML(existing.name)}</div>
+          <div class="hpop__existing-type">
+            <span class="badge ${existing.type === 'holiday' ? 'badge-warning' : 'badge-neutral'}">
+              ${existing.type === 'holiday' ? 'Festivo' : 'Cierre'}
+            </span>
+          </div>
         </div>
-        <button class="btn btn-danger btn-sm" id="holiday-pop-remove" style="width:100%;margin-top:var(--space-2);">
+        <button class="btn btn-danger btn-sm hpop__remove-btn" id="holiday-pop-remove">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/>
+          </svg>
           Quitar marca
         </button>
       ` : `
-        <label class="cal-popup__label" for="holiday-pop-name">Nombre</label>
-        <input type="text" id="holiday-pop-name" class="form-control"
-               placeholder="Ej: Día del trabajo" maxlength="200" />
-        <label class="cal-popup__label" for="holiday-pop-type" style="margin-top:var(--space-2);">Tipo</label>
-        <select id="holiday-pop-type" class="form-control">
-          <option value="holiday">Día festivo</option>
-          <option value="closure">Cierre institucional</option>
-        </select>
-        <button class="btn btn-primary btn-sm" id="holiday-pop-save" style="width:100%;margin-top:var(--space-3);">
-          Marcar
+        <div class="rmodal__field">
+          <label class="hpop__label" for="holiday-pop-name">Nombre de la fecha</label>
+          <input type="text" id="holiday-pop-name" class="form-input hpop__input"
+                 placeholder="Ej: Día del trabajo" maxlength="200" />
+        </div>
+        <div class="rmodal__field">
+          <label class="hpop__label">Tipo</label>
+          <div class="hpop__type-group">
+            <label class="hpop__type-opt">
+              <input type="radio" name="holiday-pop-type" value="holiday" checked />
+              <span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Festivo
+              </span>
+            </label>
+            <label class="hpop__type-opt">
+              <input type="radio" name="holiday-pop-type" value="closure" />
+              <span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Cierre
+              </span>
+            </label>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm hpop__save-btn" id="holiday-pop-save">
+          Marcar fecha
         </button>
       `}
     </div>`;
@@ -517,7 +559,7 @@ function _openHolidayPopover(anchorEl, dateStr) {
   document.body.appendChild(pop);
 
   // Posicionar
-  const pw = 240;
+  const pw = 280;
   let left = rect.left;
   let top  = rect.bottom + 4;
   if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
@@ -525,13 +567,18 @@ function _openHolidayPopover(anchorEl, dateStr) {
   pop.style.left = `${Math.max(8, left)}px`;
   pop.style.top  = `${Math.max(8, top)}px`;
 
+  // Focus name input if adding new
+  if (!existing) {
+    setTimeout(() => document.getElementById('holiday-pop-name')?.focus(), 30);
+  }
+
   // Wire eventos
   const closePop = () => pop.remove();
   document.getElementById('holiday-pop-close')?.addEventListener('click', closePop);
 
   document.getElementById('holiday-pop-save')?.addEventListener('click', async () => {
     const name = document.getElementById('holiday-pop-name').value.trim();
-    const type = document.getElementById('holiday-pop-type').value;
+    const type = pop.querySelector('input[name="holiday-pop-type"]:checked')?.value ?? 'holiday';
     if (!name) {
       Toast?.show('Escribe un nombre para la fecha.', 'warning');
       return;

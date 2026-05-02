@@ -406,16 +406,132 @@
 }
 
 /* ── POPOVER DE FESTIVOS (inline en mes) ── */
-.holiday-popover { width: 240px; }
+.holiday-popover { width: 280px; }
 
-.holiday-popover .form-control {
-  margin-top: 4px;
-  font-size: var(--font-size-sm);
+/* Header overrides */
+.hpop__header {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  align-items: flex-start;
 }
 
-.holiday-popover .cal-popup__label {
+.hpop__header-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.hpop__header-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.hpop__header-sub {
+  font-size: var(--font-size-xs);
+  opacity: 0.75;
+  font-weight: var(--font-weight-normal);
+}
+
+/* Body */
+.hpop__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.hpop__label {
   display: block;
-  margin-bottom: 2px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-secondary-light);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-1);
+}
+
+.hpop__input.form-input { font-size: var(--font-size-sm); }
+
+/* Type radio-button group */
+.hpop__type-group {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.hpop__type-opt {
+  flex: 1;
+  cursor: pointer;
+}
+
+.hpop__type-opt input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.hpop__type-opt span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-secondary-mid);
+  background: var(--color-bg-alt);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.hpop__type-opt input[type="radio"]:checked + span {
+  border-color: var(--color-primary);
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.hpop__save-btn,
+.hpop__remove-btn {
+  width: 100%;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Existing holiday display */
+.hpop__existing {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-alt);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.hpop__existing-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-secondary);
+  word-break: break-word;
+  flex: 1;
+}
+
+.hpop__existing-type {
+  flex-shrink: 0;
 }
 
 /* ── LEYENDA ── */
