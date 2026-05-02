@@ -13,6 +13,14 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
+    # Force revalidation on every request for JS/CSS so stale cached
+    # versions are never served after a container rebuild.
+    location ~* \.(js|css)$ {
+        try_files $uri =404;
+        add_header Cache-Control "no-cache, must-revalidate";
+        expires -1;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

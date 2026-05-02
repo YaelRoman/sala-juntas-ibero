@@ -19,6 +19,7 @@ const CalendarWeek = (() => {
   let _onSelectionCb  = null;
   let _onCommitCb     = null;
   let _disabledKeys   = new Set();   // slots no clickeables (festivo, fin de semana, ocupado)
+  let _partialBlocks  = new Map();   // key -> [{top, height}] px dentro del slot
   let _dragAnchor     = null;        // {dateIso, hour, additive}
   let _dragMoved      = false;
 
@@ -60,6 +61,7 @@ const CalendarWeek = (() => {
     _onSelectionCb = onSelectionChange;
     _onCommitCb    = onCommitSelection;
     _disabledKeys  = new Set();
+    _partialBlocks = new Map();
 
     const days       = _buildDays(weekStart);
     const todayStr   = Utils.today();
@@ -81,19 +83,36 @@ const CalendarWeek = (() => {
       }
     });
 
-    // Pre-calcular slots ocupados por reservaciones activas
+    // Pre-calcular slots ocupados y bloques parciales
     days.forEach(d => {
       const occ = resByDate[d.iso] || [];
       for (let h = HOUR_START; h < HOUR_END; h++) {
         const slotStart = h * 60;
         const slotEnd   = slotStart + 60;
-        const isOccupied = occ.some(r => {
+        const key       = `${d.iso}|${String(h).padStart(2,'0')}:00`;
+
+        // Full occupancy: reservation covers the entire hour → disable slot
+        const isFullyOccupied = occ.some(r => {
           const [sh, sm] = r.startTime.split(':').map(Number);
           const [eh, em] = r.endTime.split(':').map(Number);
           const rs = sh * 60 + sm, re = eh * 60 + em;
-          return rs < slotEnd && re > slotStart;
+          return rs <= slotStart && re >= slotEnd;
         });
-        if (isOccupied) _disabledKeys.add(`${d.iso}|${String(h).padStart(2,'0')}:00`);
+        if (isFullyOccupied) { _disabledKeys.add(key); continue; }
+
+        // Partial occupancy: reservation overlaps but doesn't fully cover → render strip
+        const strips = [];
+        occ.forEach(r => {
+          const [sh, sm] = r.startTime.split(':').map(Number);
+          const [eh, em] = r.endTime.split(':').map(Number);
+          const rs = sh * 60 + sm, re = eh * 60 + em;
+          if (rs < slotEnd && re > slotStart) {
+            const top    = Math.max(rs, slotStart) - slotStart; // px from slot top
+            const height = Math.min(re, slotEnd) - Math.max(rs, slotStart);
+            strips.push({ top, height });
+          }
+        });
+        if (strips.length) _partialBlocks.set(key, strips);
       }
       if (d.isWeekend || holidaySet.has(d.iso)) {
         for (let h = HOUR_START; h < HOUR_END; h++) {
@@ -194,14 +213,35 @@ const CalendarWeek = (() => {
       const isOccupied = _disabledKeys.has(key) && !isDisabled;
       const canClick = editable && !isDisabled && !isOccupied;
 
+      const strips = _partialBlocks.get(key) || [];
+      const hasPartial = strips.length > 0;
+
       const slotCls = [
         'cal-wk__slot',
-        canClick   ? 'is-clickable' : '',
-        isOccupied ? 'is-occupied'  : '',
+        canClick    ? 'is-clickable' : '',
+        isOccupied  ? 'is-occupied'  : '',
+        hasPartial  ? 'has-partial'  : '',
       ].filter(Boolean).join(' ');
 
+      // Inline background-image gradient paints the occupied sub-range in red.
+      // Using background-image (not background shorthand) lets background-color
+      // from .is-selected / hover rules coexist on the same element.
+      let partialBg = '';
+      if (hasPartial) {
+        const stops = [];
+        strips.forEach(s => {
+          const s0 = (s.top / SLOT_H * 100).toFixed(1);
+          const s1 = ((s.top + s.height) / SLOT_H * 100).toFixed(1);
+          stops.push(`transparent ${s0}%`);
+          stops.push(`rgba(220,38,38,0.25) ${s0}%`);
+          stops.push(`rgba(220,38,38,0.25) ${s1}%`);
+          stops.push(`transparent ${s1}%`);
+        });
+        partialBg = `background-image:linear-gradient(to bottom,${stops.join(',')});`;
+      }
+
       slots += `<div class="${slotCls}"
-                     style="top:${(h - HOUR_START) * SLOT_H}px;height:${SLOT_H}px;"
+                     style="top:${(h - HOUR_START) * SLOT_H}px;height:${SLOT_H}px;${partialBg}"
                      data-date="${d.iso}" data-hour="${timeStr}"
                      ${canClick
                        ? `role="button" tabindex="0" aria-label="Reservar el ${d.iso} a las ${timeStr}"`

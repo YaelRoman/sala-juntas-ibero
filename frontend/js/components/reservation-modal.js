@@ -24,6 +24,7 @@ const ReservationModal = (() => {
     if (_overlay) close();
 
     _intervals = intervals.map(iv => ({ ...iv }));
+    _intervals = _adjustForPartialOccupancy(_intervals);
     _onSaved   = onSaved;
 
     try {
@@ -49,6 +50,58 @@ const ReservationModal = (() => {
   };
 
   /* ── HELPERS ── */
+
+  const _toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const _fromMin = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+  /**
+   * For each interval, if existing reservations partially overlap (but don't
+   * fully block) the slot, advance startTime / retreat endTime to the first
+   * free 30-min window so the modal pre-fills a non-conflicting range.
+   */
+  const _adjustForPartialOccupancy = (intervals) => {
+    const active = (Store.getState().reservations || []).filter(r => r.status !== 'cancelled');
+    return intervals.map(iv => {
+      const dayRes = active.filter(r => r.date === iv.date);
+      if (!dayRes.length) return iv;
+
+      const slotStart = _toMin(iv.startTime);
+      const slotEnd   = _toMin(iv.endTime);
+
+      // Reservations that partially overlap this slot (don't fully cover it)
+      const partials = dayRes.filter(r => {
+        const rs = _toMin(r.startTime), re = _toMin(r.endTime);
+        return rs < slotEnd && re > slotStart && !(rs <= slotStart && re >= slotEnd);
+      });
+      if (!partials.length) return iv;
+
+      // Walk through 30-min windows inside the slot and find the first free one
+      for (let t = slotStart; t < slotEnd; t += 30) {
+        const wEnd = t + 30;
+        const blocked = partials.some(r => {
+          const rs = _toMin(r.startTime), re = _toMin(r.endTime);
+          return rs < wEnd && re > t;
+        });
+        if (!blocked) {
+          // Extend the window to cover the rest of the slot unless blocked
+          let freeEnd = wEnd;
+          while (freeEnd < slotEnd) {
+            const nextEnd = freeEnd + 30;
+            const nextBlocked = partials.some(r => {
+              const rs = _toMin(r.startTime), re = _toMin(r.endTime);
+              return rs < nextEnd && re > freeEnd;
+            });
+            if (nextBlocked) break;
+            freeEnd = nextEnd;
+          }
+          return { ...iv, startTime: _fromMin(t), endTime: _fromMin(freeEnd) };
+        }
+      }
+
+      // No free window — return as-is, backend will catch the conflict
+      return iv;
+    });
+  };
 
   const _timeOptions = (selected) => {
     const opts = [];

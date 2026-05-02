@@ -693,7 +693,7 @@
   width: 100%;
   box-sizing: border-box;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  transition: background var(--transition-fast);
+  transition: background-color var(--transition-fast);
   user-select: none;
 }
 
@@ -703,11 +703,14 @@
 
 .cal-wk__slot.is-clickable:hover,
 .cal-wk__slot.is-clickable:focus {
-  background: var(--color-primary-bg);
+  /* background-color leaves background-image (partial gradient) intact */
+  background-color: var(--color-primary-bg);
   outline: none;
 }
 
 .cal-wk__slot.is-occupied {
+  background-image: none;
+  background-color: transparent;
   background: repeating-linear-gradient(
     -45deg,
     rgba(0,0,0,0.04),
@@ -718,16 +721,16 @@
   cursor: not-allowed;
 }
 
-/* Slot seleccionado durante elección de horas */
+/* Slot seleccionado — background-color so inline background-image gradient survives */
 .cal-wk__slot.is-selected {
-  background: rgba(31, 119, 220, 0.18);
+  background-color: rgba(31, 119, 220, 0.18);
   border-left: 3px solid var(--color-primary);
   box-shadow: inset 0 0 0 1px rgba(31, 119, 220, 0.35);
 }
 
 .cal-wk__slot.is-selected:hover,
 .cal-wk__slot.is-selected:focus {
-  background: rgba(31, 119, 220, 0.28);
+  background-color: rgba(31, 119, 220, 0.28);
 }
 
 /* Día resaltado desde la vista mensual */
