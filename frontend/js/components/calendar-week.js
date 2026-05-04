@@ -36,6 +36,12 @@ const CalendarWeek = (() => {
   let _resizeDrag      = null;   // {id, reservation, origEl, startY, origEndMin, active, newEndMin}
   let _resizeWired     = false;
 
+  /* ── ESTADO INTERNO DE AUTO-SCROLL ── */
+  let _autoScrollRaf   = null;
+  let _autoScrollDir   = 0;      // -1 arriba, 0 ninguno, 1 abajo
+  const SCROLL_EDGE    = 50;     // px desde el borde para triggear scroll
+  const SCROLL_SPEED   = 8;      // px por frame
+
   /* ════════════════════════════════════════
      PUBLIC: render
      ════════════════════════════════════════ */
@@ -430,11 +436,15 @@ const CalendarWeek = (() => {
       const newEndM = newEndMin % 60;
       timeEl.textContent = `${_resizeDrag.reservation.startTime}–${String(newEndH).padStart(2,'0')}:${String(newEndM).padStart(2,'0')}`;
     }
+
+    const scrollDir = _checkAutoScroll(e.clientY);
+    _startAutoScroll(scrollDir);
   };
 
   const _onResizePointerUp = (e) => {
     document.removeEventListener('pointermove', _onResizePointerMove);
     document.removeEventListener('pointerup',   _onResizePointerUp);
+    _stopAutoScroll();
 
     if (!_resizeDrag) return;
     const { active, id, reservation, newEndMin, origEl } = _resizeDrag;
@@ -527,6 +537,8 @@ const CalendarWeek = (() => {
     _blockDrag.dropDate = null;
     _blockDrag.dropHour = null;
 
+    _startAutoScroll(_checkAutoScroll(e.clientY));
+
     if (!col ||
         col.classList.contains('is-disabled') ||
         col.classList.contains('is-holiday') ||
@@ -582,6 +594,7 @@ const CalendarWeek = (() => {
       // If overflow past HOUR_END, drop is silently cancelled
     }
 
+    _stopAutoScroll();
     _blockDrag = null;
   };
 
@@ -596,7 +609,15 @@ const CalendarWeek = (() => {
     document.addEventListener('mouseup',    _onMouseUp);
     container.addEventListener('keydown',   _onKeyDown);
     container.addEventListener('dblclick',  _onDoubleClick);
+    container.addEventListener('wheel',     _onWheel, { passive: false });
     _selectionWired = true;
+  };
+
+  const _onWheel = (e) => {
+    if (!_container) return;
+    e.preventDefault();
+    const dir = e.deltaY > 0 ? 1 : -1;
+    _container.scrollTop += dir * 40;
   };
 
   const _slotFromEvent = (e) => {
@@ -640,6 +661,9 @@ const CalendarWeek = (() => {
 
   const _onMouseMove = (e) => {
     if (!_dragAnchor) return;
+
+    _startAutoScroll(_checkAutoScroll(e.clientY));
+
     const slot = _slotFromEvent(e);
     if (!slot) return;
 
@@ -653,6 +677,7 @@ const CalendarWeek = (() => {
   };
 
   const _onMouseUp = () => {
+    _stopAutoScroll();
     _dragAnchor = null;
     _dragMoved  = false;
   };
@@ -714,6 +739,34 @@ const CalendarWeek = (() => {
 
   const _emitSelectionChange = () => {
     _onSelectionCb?.(getSelection());
+  };
+
+  /* ── AUTO-SCROLL HELPERS ── */
+  const _checkAutoScroll = (clientY) => {
+    if (!_container) return 0;
+    const rect = _container.getBoundingClientRect();
+    if (clientY < rect.top + SCROLL_EDGE) return -1;
+    if (clientY > rect.bottom - SCROLL_EDGE) return 1;
+    return 0;
+  };
+
+  const _startAutoScroll = (dir) => {
+    if (_autoScrollDir === dir) return;
+    _autoScrollDir = dir;
+    _stopAutoScroll();
+    if (dir === 0) return;
+
+    const doScroll = () => {
+      if (!_container) return;
+      _container.scrollTop += dir * SCROLL_SPEED;
+      _autoScrollRaf = requestAnimationFrame(doScroll);
+    };
+    _autoScrollRaf = requestAnimationFrame(doScroll);
+  };
+
+  const _stopAutoScroll = () => {
+    if (_autoScrollRaf) cancelAnimationFrame(_autoScrollRaf);
+    _autoScrollRaf = null;
   };
 
   /* ════════════════════════════════════════
