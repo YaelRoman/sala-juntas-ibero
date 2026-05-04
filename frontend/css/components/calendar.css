@@ -903,6 +903,13 @@
   pointer-events: none;
 }
 
+/* Block marked for cut — awaiting paste to move */
+.cal-wk__event.is-cut {
+  opacity: 0.45;
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+}
+
 /* Floating ghost that follows the cursor */
 .cal-wk__event--ghost {
   position: fixed;

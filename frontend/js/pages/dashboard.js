@@ -248,7 +248,15 @@ function _onReservationClick(id, event) {
     _closePopup();
     ReservationModal.open({
       editReservation: r,
-      onSaved: () => _refresh(),
+      onSaved: () => {
+        _renderStats();
+        if (Calendar.getCurrentView() === 'week') {
+          Calendar.renderWeek(new Date(`${r.date}T00:00:00`));
+        } else {
+          Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+        }
+        _renderUpcoming();
+      },
     });
   });
 
@@ -432,7 +440,7 @@ function _initEventListeners() {
     _openReservationModalFromSelection(CalendarWeek.getSelection());
   });
 
-  // Atajos de teclado: Ctrl+C en bloque, Ctrl+V en slot
+  // Atajos de teclado: Ctrl+C / Ctrl+X en bloque, Ctrl+V en slot
   document.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     if (Calendar.getCurrentView() !== 'week') return;
@@ -442,6 +450,13 @@ function _initEventListeners() {
       if (!el) return;
       e.preventDefault();
       _copyReservation(el.dataset.id);
+    }
+
+    if (e.key === 'x' || e.key === 'X') {
+      const el = document.activeElement?.closest('.cal-wk__event[data-id]');
+      if (!el) return;
+      e.preventDefault();
+      _cutReservation(parseInt(el.dataset.id, 10));
     }
 
     if (e.key === 'v' || e.key === 'V') {
@@ -513,14 +528,17 @@ function _openReservationModalFromSelection() {
 /* ════════════════════════════════════════
    PORTAPAPELES
    ════════════════════════════════════════ */
-let _clipboard = null; // { responsible_id, area, observations, durationMin }
+let _clipboard = null; // { isCut, id?, responsible_id, area, observations, durationMin }
+let _cutId     = null; // ID of block currently marked is-cut
 
 function _copyReservation(id) {
+  _cancelCut();
   const r = Store.getState().reservations.find(res => res.id === id);
   if (!r) return;
   const [sh, sm] = r.startTime.split(':').map(Number);
   const [eh, em] = r.endTime.split(':').map(Number);
   _clipboard = {
+    isCut:          false,
     responsible_id: r.responsible_id,
     area:           r.area,
     observations:   r.observations || '',
@@ -529,9 +547,36 @@ function _copyReservation(id) {
   Toast.show('Reservación copiada. Click derecho en un horario libre para pegar.', 'success');
 }
 
-function _pasteReservation(dateStr, startTime) {
+function _cutReservation(id) {
+  _cancelCut();
+  const r = Store.getState().reservations.find(res => res.id === id);
+  if (!r) return;
+  const [sh, sm] = r.startTime.split(':').map(Number);
+  const [eh, em] = r.endTime.split(':').map(Number);
+  _clipboard = {
+    isCut:          true,
+    id:             r.id,
+    responsible_id: r.responsible_id,
+    area:           r.area,
+    observations:   r.observations || '',
+    durationMin:    (eh * 60 + em) - (sh * 60 + sm),
+  };
+  _cutId = id;
+  document.querySelector(`.cal-wk__event[data-id="${id}"]`)?.classList.add('is-cut');
+  Toast.show('Reservación cortada. Click derecho en un horario libre para mover.', 'info');
+}
+
+function _cancelCut() {
+  if (_cutId !== null) {
+    document.querySelector(`.cal-wk__event[data-id="${_cutId}"]`)?.classList.remove('is-cut');
+    _cutId = null;
+  }
+  if (_clipboard?.isCut) _clipboard = null;
+}
+
+async function _pasteReservation(dateStr, startTime) {
   if (!_clipboard) return;
-  const [sh, sm]  = startTime.split(':').map(Number);
+  const [sh, sm]    = startTime.split(':').map(Number);
   const endTotalMin = sh * 60 + sm + _clipboard.durationMin;
 
   if (endTotalMin > 20 * 60) {
@@ -543,34 +588,56 @@ function _pasteReservation(dateStr, startTime) {
   const endM    = endTotalMin % 60;
   const endTime = `${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}`;
 
-  if (_dragHasConflict(null, dateStr, startTime, endTime)) {
+  const excludeId = _clipboard.isCut ? _clipboard.id : null;
+  if (_dragHasConflict(excludeId, dateStr, startTime, endTime)) {
     Toast.show('El horario ya está ocupado por otra reservación.', 'warning');
     return;
   }
 
-  ReservationModal.open({
-    intervals: [{ date: dateStr, startTime, endTime }],
-    prefill:   {
-      responsible_id: _clipboard.responsible_id,
-      area:           _clipboard.area,
-      observations:   _clipboard.observations,
-    },
-    onSaved: async () => {
-      try {
-        const reservations = await API.getReservations();
-        Store.setState({ reservations });
-      } catch (err) {
-        console.error('Refresh after paste failed:', err);
-      }
-      _renderStats();
-      _renderUpcoming();
-      if (Calendar.getCurrentView() === 'week') {
-        Calendar.renderWeek(new Date(`${dateStr}T00:00:00`), Calendar.getHighlightDate());
-      } else {
-        Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
-      }
-    },
-  });
+  const _refreshView = async () => {
+    try {
+      const reservations = await API.getReservations();
+      Store.setState({ reservations });
+    } catch (err) {
+      console.error('Refresh after paste failed:', err);
+    }
+    _renderStats();
+    _renderUpcoming();
+    if (Calendar.getCurrentView() === 'week') {
+      Calendar.renderWeek(new Date(`${dateStr}T00:00:00`), Calendar.getHighlightDate());
+    } else {
+      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    }
+  };
+
+  if (_clipboard.isCut) {
+    const { id: cutId, responsible_id, area, observations } = _clipboard;
+    _cancelCut();
+    const result = await Reservations.update(cutId, {
+      start_time:     `${dateStr}T${startTime}:00`,
+      end_time:       `${dateStr}T${endTime}:00`,
+      responsible_id,
+      area,
+      observations:   observations || '',
+    });
+    if (result?.success === false) {
+      Toast.show(result.error || 'Error al mover la reservación.', 'error');
+      return;
+    }
+    Toast.show('Reservación movida correctamente.', 'success');
+    _clipboard = null;
+    await _refreshView();
+  } else {
+    ReservationModal.open({
+      intervals: [{ date: dateStr, startTime, endTime }],
+      prefill: {
+        responsible_id: _clipboard.responsible_id,
+        area:           _clipboard.area,
+        observations:   _clipboard.observations,
+      },
+      onSaved: _refreshView,
+    });
+  }
 }
 
 /* ════════════════════════════════════════
@@ -637,11 +704,21 @@ function _openReservationContextMenu(id, x, y) {
         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
       </svg>
       Copiar reservación
+    </button>
+    <button class="wk-ctx-menu__item" id="wk-ctx-cut">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="6" cy="20" r="2"/><circle cx="20" cy="20" r="2"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
+        <path d="M9.64 9.64L14 4"/>
+        <path d="M10.36 14.36L6 20M15 4l5 7.36"/>
+      </svg>
+      Cortar reservación
     </button>`;
 
   document.body.appendChild(menu);
 
-  const mw = 220, mh = 50;
+  const mw = 220, mh = 90;
   const left = x + mw > window.innerWidth  - 8 ? x - mw : x;
   const top  = y + mh > window.innerHeight - 8 ? y - mh : y;
   menu.style.left = `${Math.max(8, left)}px`;
@@ -660,6 +737,10 @@ function _openReservationContextMenu(id, x, y) {
   document.getElementById('wk-ctx-copy').addEventListener('click', () => {
     close();
     _copyReservation(id);
+  });
+  document.getElementById('wk-ctx-cut').addEventListener('click', () => {
+    close();
+    _cutReservation(id);
   });
 }
 
@@ -704,7 +785,7 @@ function _openWeekContextMenu(dateStr, x, y) {
         <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
         <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
       </svg>
-      Pegar aquí (${pasteTime})
+      ${_clipboard?.isCut ? 'Mover' : 'Pegar'} aquí (${pasteTime})
     </button>` : ''}`;
 
   document.body.appendChild(menu);
