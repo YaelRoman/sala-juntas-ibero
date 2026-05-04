@@ -233,6 +233,17 @@
   user-select: none;
 }
 
+.rmodal__iv-overlap {
+  font-size: var(--font-size-xs);
+  padding: 2px var(--space-3) 4px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.rmodal__iv-overlap.is-available { color: var(--color-success); }
+.rmodal__iv-overlap.is-conflict  { color: var(--color-primary); }
+.rmodal__iv-overlap.hidden       { display: none; }
+
 /* ── AI section ── */
 .rmodal__ai-section {
   background: var(--color-bg-alt);

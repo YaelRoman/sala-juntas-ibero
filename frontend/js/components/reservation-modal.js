@@ -5,29 +5,38 @@
 
 const ReservationModal = (() => {
 
-  let _overlay   = null;
-  let _intervals = [];
-  let _users     = [];
-  let _onSaved   = null;
-  let _aiEnabled = false;
-  let _prefill   = null;  // { responsible_id, area, observations }
+  let _overlay         = null;
+  let _intervals       = [];
+  let _users           = [];
+  let _onSaved         = null;
+  let _aiEnabled       = false;
+  let _prefill         = null;  // { responsible_id, area, observations }
+  let _editReservation = null;  // full reservation object when editing
 
   /**
    * @param {object}   opts
-   * @param {Array}    opts.intervals  — [{date, startTime, endTime}, ...]
-   * @param {Function} [opts.onSaved]  — (createdArray) => void
+   * @param {Array}    [opts.intervals]        — [{date, startTime, endTime}, ...] (create mode)
+   * @param {object}   [opts.editReservation]  — existing reservation object (edit mode)
+   * @param {Function} [opts.onSaved]          — (savedArray) => void
    */
-  const open = async ({ intervals = [], onSaved = null, prefill = null } = {}) => {
-    if (!intervals.length) {
-      Toast?.show('Selecciona al menos una hora antes de reservar.', 'warning');
-      return;
-    }
+  const open = async ({ intervals = [], editReservation = null, onSaved = null, prefill = null } = {}) => {
     if (_overlay) close();
 
-    _intervals = intervals.map(iv => ({ ...iv }));
-    _intervals = _adjustForPartialOccupancy(_intervals);
-    _onSaved   = onSaved;
-    _prefill   = prefill;
+    _editReservation = editReservation ?? null;
+    _onSaved         = onSaved;
+    _prefill         = prefill;
+
+    if (_editReservation) {
+      const r    = _editReservation;
+      _intervals = [{ date: r.date, startTime: r.startTime, endTime: r.endTime }];
+    } else {
+      if (!intervals.length) {
+        Toast?.show('Selecciona al menos una hora antes de reservar.', 'warning');
+        return;
+      }
+      _intervals = intervals.map(iv => ({ ...iv }));
+      _intervals = _adjustForPartialOccupancy(_intervals);
+    }
 
     try {
       const [users, ai] = await Promise.all([
@@ -48,7 +57,8 @@ const ReservationModal = (() => {
     if (!_overlay) return;
     _overlay._cleanup?.();
     _overlay.remove();
-    _overlay = null;
+    _overlay          = null;
+    _editReservation  = null;
   };
 
   /* ── HELPERS ── */
@@ -141,6 +151,7 @@ const ReservationModal = (() => {
 
     const n        = _intervals.length;
     const isSingle = n === 1;
+    const isEdit   = Boolean(_editReservation);
 
     overlay.innerHTML = `
       <div class="modal-dialog modal-dialog--lg rmodal">
@@ -157,8 +168,8 @@ const ReservationModal = (() => {
             </svg>
           </div>
           <div class="rmodal__header-text">
-            <h3 id="rmodal-title">Nueva reservación</h3>
-            <p class="rmodal__header-sub">${n} horario${n !== 1 ? 's' : ''} seleccionado${n !== 1 ? 's' : ''}</p>
+            <h3 id="rmodal-title">${isEdit ? 'Editar reservación' : 'Nueva reservación'}</h3>
+            <p class="rmodal__header-sub">${isEdit ? Utils.escapeHTML(Utils.formatDateShort(_editReservation.date)) : `${n} horario${n !== 1 ? 's' : ''} seleccionado${n !== 1 ? 's' : ''}`}</p>
           </div>
           <button type="button" class="rmodal__close" aria-label="Cerrar" data-rmodal-close>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -193,6 +204,7 @@ const ReservationModal = (() => {
                     ${_timeOptions(iv.endTime)}
                   </select>
                 </div>
+                <div class="rmodal__iv-overlap hidden" data-iv-overlap="${i}" role="status" aria-live="polite"></div>
               `).join('')}
             </div>
           </div>
@@ -283,8 +295,8 @@ const ReservationModal = (() => {
             </div>
           </div>
 
-          <!-- 4. Recurrencia (solo para un solo intervalo) -->
-          ${isSingle ? `
+          <!-- 4. Recurrencia (solo para un solo intervalo nuevo) -->
+          ${isSingle && !isEdit ? `
           <div class="rmodal__section rmodal__recur-section">
             <label class="rmodal__toggle">
               <input type="checkbox" id="rmodal-recur-chk" />
@@ -328,7 +340,7 @@ const ReservationModal = (() => {
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-rmodal-close>Cancelar</button>
           <button type="button" class="btn btn-primary" id="rmodal-save">
-            Guardar ${n > 1 ? `(${n} reservaciones)` : 'reservación'}
+            ${isEdit ? 'Guardar cambios' : `Guardar ${n > 1 ? `(${n} reservaciones)` : 'reservación'}`}
           </button>
         </div>
       </div>`;
@@ -339,7 +351,14 @@ const ReservationModal = (() => {
     const respSel = overlay.querySelector('#rmodal-responsible');
     if (respSel) _populateResponsibleSelect(respSel);
 
-    if (_prefill) {
+    if (_editReservation) {
+      const r      = _editReservation;
+      const areaEl = overlay.querySelector('#rmodal-area');
+      const obsEl  = overlay.querySelector('#rmodal-obs');
+      if (respSel) respSel.value = String(r.responsible_id);
+      if (areaEl)  areaEl.value  = r.area ?? '';
+      if (obsEl)   obsEl.value   = r.observations ?? '';
+    } else if (_prefill) {
       if (_prefill.responsible_id) respSel.value = String(_prefill.responsible_id);
       const areaEl = overlay.querySelector('#rmodal-area');
       const obsEl  = overlay.querySelector('#rmodal-obs');
@@ -348,7 +367,28 @@ const ReservationModal = (() => {
     }
 
     _wireEvents();
+    _intervals.forEach((_, i) => _checkIvOverlap(i));
     respSel?.focus();
+  };
+
+  /* ── OVERLAP CHECK ── */
+  const _checkIvOverlap = (idx) => {
+    const iv = _intervals[idx];
+    const el = _overlay?.querySelector(`[data-iv-overlap="${idx}"]`);
+    if (!el) return;
+    if (!iv.startTime || !iv.endTime || iv.startTime >= iv.endTime) {
+      el.className = 'rmodal__iv-overlap hidden';
+      return;
+    }
+    const conflict = Reservations.checkOverlap(iv.date, iv.startTime, iv.endTime, _editReservation?.id ?? null);
+    el.classList.remove('hidden', 'is-conflict', 'is-available');
+    if (conflict) {
+      el.classList.add('is-conflict');
+      el.innerHTML = `Traslape con <strong>${Utils.escapeHTML(conflict.responsible)}</strong> (${conflict.startTime}–${conflict.endTime})`;
+    } else {
+      el.classList.add('is-available');
+      el.textContent = 'Horario disponible';
+    }
   };
 
   /* ── EVENTOS ── */
@@ -381,12 +421,14 @@ const ReservationModal = (() => {
           endSel.value              = newEnd;
           _intervals[idx].endTime   = newEnd;
         }
+        _checkIvOverlap(idx);
       });
     });
     _overlay.querySelectorAll('[data-iv-end]').forEach(sel => {
       const idx = parseInt(sel.dataset.ivEnd, 10);
       sel.addEventListener('change', () => {
         _intervals[idx].endTime = sel.value;
+        _checkIvOverlap(idx);
       });
     });
 
@@ -531,6 +573,31 @@ const ReservationModal = (() => {
     errEl.classList.add('hidden');
     saveBtn.disabled    = true;
     saveBtn.textContent = 'Guardando…';
+
+    // Edit path
+    if (_editReservation) {
+      const iv = _intervals[0];
+      const result = await Reservations.update(_editReservation.id, {
+        start_time:     `${iv.date}T${iv.startTime}:00`,
+        end_time:       `${iv.date}T${iv.endTime}:00`,
+        responsible_id,
+        area,
+        observations,
+      });
+      if (result.success) {
+        Toast?.show('Reservación actualizada correctamente.', 'success');
+        _onSaved?.(null);
+        close();
+      } else {
+        errEl.textContent = result.error === 'overlap'
+          ? 'Traslape con otra reservación.'
+          : result.error || 'Error al actualizar.';
+        errEl.classList.remove('hidden');
+        saveBtn.disabled    = false;
+        saveBtn.textContent = 'Guardar cambios';
+      }
+      return;
+    }
 
     // Recurring path (single interval only)
     const recurChk = _overlay.querySelector('#rmodal-recur-chk');

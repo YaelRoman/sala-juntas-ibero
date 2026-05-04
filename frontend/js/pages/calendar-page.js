@@ -189,7 +189,10 @@ function _onReservationClick(id, event) {
   document.getElementById('popup-close')?.addEventListener('click', _closePopup);
   document.getElementById('popup-edit')?.addEventListener('click', () => {
     _closePopup();
-    window.location.href = `reservacion.html?edit=${r.id}`;
+    ReservationModal.open({
+      editReservation: r,
+      onSaved: () => Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth()),
+    });
   });
   document.getElementById('popup-cancel')?.addEventListener('click', () => {
     _closePopup();

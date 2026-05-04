@@ -246,7 +246,10 @@ function _onReservationClick(id, event) {
   const editBtn = document.getElementById('popup-edit');
   editBtn?.addEventListener('click', () => {
     _closePopup();
-    window.location.href = `reservacion.html?edit=${r.id}`;
+    ReservationModal.open({
+      editReservation: r,
+      onSaved: () => _refresh(),
+    });
   });
 
   const cancelBtn = document.getElementById('popup-cancel');

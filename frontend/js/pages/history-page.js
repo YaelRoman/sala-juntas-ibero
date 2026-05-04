@@ -197,6 +197,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
+    // Wire individual edit
+    tableBody.querySelectorAll('.row-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const r = Store.getState().reservations.find(res => res.id === parseInt(btn.dataset.id, 10));
+        if (!r) return;
+        ReservationModal.open({
+          editReservation: r,
+          onSaved: () => _renderTable(),
+        });
+      });
+    });
+
     // Wire individual cancel
     tableBody.querySelectorAll('.row-cancel-btn').forEach(btn => {
       btn.addEventListener('click', () => _onRowCancel(btn.dataset.id));
@@ -230,16 +242,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const actions = isSecretary && isActive
       ? `<div class="row-actions">
-           <a href="reservacion.html?edit=${r.id}"
-              class="btn btn-secondary btn-sm"
-              aria-label="Editar reservación de ${Utils.escapeHTML(r.responsible)}">
+           <button class="btn btn-secondary btn-sm row-edit-btn" data-id="${r.id}"
+                   aria-label="Editar reservación de ${Utils.escapeHTML(r.responsible)}">
              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
              </svg>
-           </a>
+           </button>
            <button class="btn btn-danger btn-sm row-cancel-btn" data-id="${r.id}"
                    aria-label="Cancelar reservación de ${Utils.escapeHTML(r.responsible)}">
              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
