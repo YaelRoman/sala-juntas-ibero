@@ -99,6 +99,41 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.cal-quick-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.cal-quick-nav.hidden { display: none; }
+
+.cal-quick-select {
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--color-secondary);
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-1);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.cal-quick-select:hover,
+.cal-quick-select:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.cal-quick-year {
+  width: 62px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.cal-quick-year::-webkit-inner-spin-button,
+.cal-quick-year::-webkit-outer-spin-button { -webkit-appearance: none; }
+
 .calendar-widget__nav {
   display: flex;
   align-items: center;

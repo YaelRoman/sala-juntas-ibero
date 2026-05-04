@@ -40,6 +40,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 7. Renderizar calendario
   _initCalendar();
+  _syncQuickNav(); // sync month/year selects to initial state
+
+  // 7b. Mini-calendario sidebar
+  _initMiniCalendar();
 
   // 8. Renderizar próximas reservaciones
   _renderUpcoming();
@@ -90,6 +94,28 @@ function _renderStats() {
   _set('stat-recurring', recurring.length);
 }
 
+/* ── MINI-CALENDARIO SIDEBAR ── */
+function _initMiniCalendar() {
+  const { holidays } = Store.getState();
+  const today = Utils.today();
+
+  MiniCalendar.init({
+    containerId: 'mini-cal',
+    holidays,
+    onDayClick: (dateStr) => {
+      Store.setState({ selectedDate: dateStr });
+      Calendar.setHighlightDate(dateStr);
+      _setViewActive('week');
+      CalendarWeek.clearSelection();
+      Calendar.renderWeek(new Date(`${dateStr}T00:00:00`), dateStr);
+      MiniCalendar.setHighlight(dateStr);
+    },
+  });
+
+  // Highlight today's week by default (week view is the initial view)
+  MiniCalendar.setHighlight(today);
+}
+
 /* ── CALENDARIO ── */
 function _initCalendar() {
   const user = Store.getUser();
@@ -121,6 +147,7 @@ function _onDayClick(dateStr) {
   Calendar.setHighlightDate(dateStr);
   _setViewActive('week');
   Calendar.renderWeek(new Date(`${dateStr}T00:00:00`), dateStr);
+  MiniCalendar.setHighlight(dateStr);
 }
 
 /* ── CLICK EN RESERVACIÓN ── */
@@ -348,12 +375,33 @@ function _renderUpcoming() {
   });
 }
 
+/* ── SELECTOR RÁPIDO MES/AÑO ── */
+function _syncQuickNav() {
+  const monthSel = document.getElementById('cal-quick-month');
+  const yearInp  = document.getElementById('cal-quick-year');
+  if (monthSel) monthSel.value = Calendar.getCurrentMonth();
+  if (yearInp)  yearInp.value  = Calendar.getCurrentYear();
+}
+
+function _showQuickNav(visible) {
+  document.getElementById('cal-quick-nav')?.classList.toggle('hidden', !visible);
+}
+
 /* ── EVENT LISTENERS GENERALES ── */
 function _initEventListeners() {
   // Navegación — delegada al módulo Calendar (HU-07)
-  document.getElementById('cal-prev')?.addEventListener('click',  () => Calendar.navigateTo('prev'));
-  document.getElementById('cal-next')?.addEventListener('click',  () => Calendar.navigateTo('next'));
-  document.getElementById('cal-today')?.addEventListener('click', () => Calendar.navigateTo('today'));
+  document.getElementById('cal-prev')?.addEventListener('click',  () => { Calendar.navigateTo('prev');  _syncQuickNav(); });
+  document.getElementById('cal-next')?.addEventListener('click',  () => { Calendar.navigateTo('next');  _syncQuickNav(); });
+  document.getElementById('cal-today')?.addEventListener('click', () => { Calendar.navigateTo('today'); _syncQuickNav(); });
+
+  // Selector rápido mes/año (solo vista mensual)
+  document.getElementById('cal-quick-month')?.addEventListener('change', (e) => {
+    Calendar.renderMonth(Calendar.getCurrentYear(), parseInt(e.target.value, 10));
+  });
+  document.getElementById('cal-quick-year')?.addEventListener('change', (e) => {
+    const y = parseInt(e.target.value, 10);
+    if (y >= 2000 && y <= 2100) Calendar.renderMonth(y, Calendar.getCurrentMonth());
+  });
 
   // Toggle vista mes/semana
   document.getElementById('view-month')?.addEventListener('click', () => {
@@ -362,11 +410,15 @@ function _initEventListeners() {
     CalendarWeek.clearSelection();
     Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
     _hideSelectionBar();
+    MiniCalendar.clearHighlight();
+    _showQuickNav(true);
+    _syncQuickNav();
   });
   document.getElementById('view-week')?.addEventListener('click', () => {
     _setViewActive('week');
     CalendarWeek.clearSelection();
     Calendar.renderWeek(new Date());
+    _showQuickNav(false);
   });
 
   // Selección semanal — botones de la barra

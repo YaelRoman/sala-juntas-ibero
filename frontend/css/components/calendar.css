@@ -961,3 +961,95 @@
   padding: var(--space-2) var(--space-4) var(--space-3);
   border-top: 1px solid var(--color-border);
 }
+
+/* ══════════════════════════════════════════════════════
+   MINI-CALENDAR PICKER (sidebar)
+   ══════════════════════════════════════════════════════ */
+
+.mini-cal {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mini-cal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.mini-cal__title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-secondary);
+}
+
+.mini-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+
+.mini-cal__dow {
+  text-align: center;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-secondary-light);
+  padding: var(--space-1) 0;
+  letter-spacing: 0.03em;
+}
+
+.mini-cal__day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.mini-cal__day:hover:not(.is-other-month) {
+  background: var(--color-bg-hover);
+}
+
+.mini-cal__num {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  border-radius: 50%;
+}
+
+.mini-cal__day.is-other-month {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
+.mini-cal__day.is-weekend .mini-cal__num {
+  color: var(--color-secondary-light);
+}
+
+.mini-cal__day.is-week-highlight {
+  background: var(--color-primary-bg);
+}
+
+.mini-cal__day.is-today .mini-cal__num {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: var(--font-weight-bold);
+}
+
+.mini-cal__day.is-selected .mini-cal__num {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: var(--font-weight-bold);
+}
+
+.mini-cal__day.is-holiday .mini-cal__num {
+  background: var(--cal-holiday);
+  color: #fff;
+}

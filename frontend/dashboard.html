@@ -142,6 +142,25 @@
           <div class="calendar-widget__header">
             <h2 class="calendar-widget__title" id="cal-month-title">Abril 2026</h2>
             <div style="display:flex;align-items:center;gap:var(--space-3);">
+              <!-- Selector rápido mes/año (solo vista mensual) -->
+              <div class="cal-quick-nav" id="cal-quick-nav" aria-label="Selección rápida de mes y año">
+                <select id="cal-quick-month" class="cal-quick-select" aria-label="Mes">
+                  <option value="0">Enero</option>
+                  <option value="1">Febrero</option>
+                  <option value="2">Marzo</option>
+                  <option value="3">Abril</option>
+                  <option value="4">Mayo</option>
+                  <option value="5">Junio</option>
+                  <option value="6">Julio</option>
+                  <option value="7">Agosto</option>
+                  <option value="8">Septiembre</option>
+                  <option value="9">Octubre</option>
+                  <option value="10">Noviembre</option>
+                  <option value="11">Diciembre</option>
+                </select>
+                <input type="number" id="cal-quick-year" class="cal-quick-select cal-quick-year"
+                       min="2000" max="2100" aria-label="Año" />
+              </div>
               <!-- Toggle vista -->
               <div class="calendar-widget__view-toggle" role="group" aria-label="Vista del calendario">
                 <button class="view-toggle-btn active" id="view-month" aria-pressed="true">Mes</button>
@@ -212,6 +231,9 @@
 
         <!-- Panel de próximas reservaciones -->
         <aside class="upcoming-panel" aria-label="Próximas reservaciones">
+          <!-- Mini-calendario selector de fecha -->
+          <div id="mini-cal" class="mini-cal"></div>
+
           <div class="upcoming-panel__header">
             <h2 class="upcoming-panel__title">Próximas reservaciones</h2>
             <a href="historial.html" class="text-sm" style="color:var(--color-primary);">Ver todas</a>
@@ -254,6 +276,7 @@
 <script src="js/components/sidebar.js"></script>
 <script src="js/components/calendar-grid.js"></script>
 <script src="js/components/calendar-week.js"></script>
+<script src="js/components/mini-calendar.js"></script>
 <script src="js/components/modal.js"></script>
 <script src="js/components/reservation-modal.js"></script>
 <script src="js/modules/calendar.js"></script>
