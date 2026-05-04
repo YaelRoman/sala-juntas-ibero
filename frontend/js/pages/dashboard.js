@@ -440,20 +440,34 @@ function _initEventListeners() {
     _openReservationModalFromSelection(CalendarWeek.getSelection());
   });
 
+  // Track last clicked block and slot so keyboard shortcuts don't require
+  // manual focus (div[tabindex] doesn't auto-focus on mouse click in all browsers)
+  let _kbBlock = null; // last pointerdown'd .cal-wk__event element
+  let _kbSlot  = null; // last pointerdown'd slot { date, hour }
+
+  document.addEventListener('pointerdown', (e) => {
+    const block = e.target.closest('.cal-wk__event[data-id]');
+    if (block) { _kbBlock = block; _kbSlot = null; return; }
+    const slot  = e.target.closest('.cal-wk__slot[data-date][data-hour]');
+    if (slot)  { _kbSlot = { date: slot.dataset.date, hour: slot.dataset.hour }; _kbBlock = null; return; }
+    _kbBlock = null;
+    _kbSlot  = null;
+  }, true);
+
   // Atajos de teclado: Ctrl+C / Ctrl+X en bloque, Ctrl+V en slot
   document.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     if (Calendar.getCurrentView() !== 'week') return;
 
     if (e.key === 'c' || e.key === 'C') {
-      const el = document.activeElement?.closest('.cal-wk__event[data-id]');
+      const el = _kbBlock ?? document.activeElement?.closest('.cal-wk__event[data-id]');
       if (!el) return;
       e.preventDefault();
       _copyReservation(el.dataset.id);
     }
 
     if (e.key === 'x' || e.key === 'X') {
-      const el = document.activeElement?.closest('.cal-wk__event[data-id]');
+      const el = _kbBlock ?? document.activeElement?.closest('.cal-wk__event[data-id]');
       if (!el) return;
       e.preventDefault();
       _cutReservation(parseInt(el.dataset.id, 10));
@@ -461,10 +475,13 @@ function _initEventListeners() {
 
     if (e.key === 'v' || e.key === 'V') {
       if (!_clipboard) return;
-      const el = document.activeElement?.closest('.cal-wk__slot[data-date][data-hour]');
-      if (!el) return;
+      const slot = _kbSlot ?? (() => {
+        const el = document.activeElement?.closest('.cal-wk__slot[data-date][data-hour]');
+        return el ? { date: el.dataset.date, hour: el.dataset.hour } : null;
+      })();
+      if (!slot) return;
       e.preventDefault();
-      _pasteReservation(el.dataset.date, el.dataset.hour);
+      _pasteReservation(slot.date, slot.hour);
     }
   });
 }
