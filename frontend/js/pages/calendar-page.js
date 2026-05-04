@@ -45,26 +45,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('readonly-banner')?.classList.remove('hidden');
   }
 
-  // ── Show "Nueva Reservación" button only for secretaria ──
-  if (isSecretary) {
-    const btnNueva = document.getElementById('btn-nueva-reserva');
-    if (btnNueva) {
-      btnNueva.style.display = '';
-      btnNueva.addEventListener('click', () => { window.location.href = 'reservacion.html'; });
-    }
-    const fab = document.getElementById('fab-container');
-    if (fab) fab.style.display = '';
-    document.getElementById('fab-nueva')?.addEventListener('click', () => {
-      window.location.href = 'reservacion.html';
-    });
-  }
-
   // ── Init Calendar module ──
   Calendar.init({
     containerId:        'cal-body',
     titleId:            'cal-title',
     editable:           isSecretary,
-    onDayClick:         isSecretary ? _onDayClick : null,
+    onDayClick:         _onDayClick,
     onReservationClick: _onReservationClick,
   });
 
@@ -96,11 +82,11 @@ function _setViewActive(view) {
   weekBtn?.setAttribute('aria-pressed',  String(view === 'week'));
 }
 
-/* ── CLICK EN DÍA / SLOT (secretaria) ── */
-function _onDayClick(dateStr, hourStr) {
-  Store.setState({ selectedDate: dateStr });
-  const params = hourStr ? `?date=${dateStr}&time=${hourStr}` : `?date=${dateStr}`;
-  window.location.href = `reservacion.html${params}`;
+/* ── CLICK EN DÍA / SLOT — navega a vista semanal ── */
+function _onDayClick(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  document.getElementById('view-week')?.click();
+  Calendar.renderWeek(new Date(y, m - 1, d));
 }
 
 /* ── CLICK EN RESERVACIÓN (ambos roles) — HU-06, HU-14 ── */

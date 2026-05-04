@@ -432,14 +432,6 @@ function _initEventListeners() {
     _openReservationModalFromSelection(CalendarWeek.getSelection());
   });
 
-  // Nueva reservación — topbar y FAB (sin selección previa)
-  ['topbar-nueva-reserva', 'fab-nueva'].forEach(id => {
-    document.getElementById(id)?.addEventListener('click', (e) => {
-      e.preventDefault();
-      window.location.href = 'reservacion.html';
-    });
-  });
-
   // Atajos de teclado: Ctrl+C en bloque, Ctrl+V en slot
   document.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
