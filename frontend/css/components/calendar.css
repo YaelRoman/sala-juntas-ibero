@@ -102,6 +102,12 @@
   color: #fff;
 }
 
+/* Evento (no bloquea reservaciones) */
+.cal-day.is-evento .cal-day__number {
+  background: var(--cal-evento);
+  color: #fff;
+}
+
 /* Día de otro mes */
 .cal-day.is-other-month {
   background: var(--color-bg-alt);
@@ -137,6 +143,10 @@
 }
 .cal-day.is-closed .cal-day__label {
   background: var(--cal-closed);
+  color: #fff;
+}
+.cal-day.is-evento .cal-day__label {
+  background: var(--cal-evento);
   color: #fff;
 }
 
@@ -667,6 +677,10 @@
   background: #f0f0f2;
 }
 
+.cal-wk__head-cell.is-evento {
+  background: color-mix(in srgb, var(--cal-evento) 10%, transparent);
+}
+
 /* Holiday / closure name shown below the day number */
 .cal-wk__holiday-label {
   display: block;
@@ -687,6 +701,10 @@
 }
 .cal-wk__holiday-label--closure {
   background: var(--cal-closed);
+  color: #fff;
+}
+.cal-wk__holiday-label--evento {
+  background: var(--cal-evento);
   color: #fff;
 }
 
@@ -760,6 +778,8 @@
 .cal-wk__day-col.is-holiday { background: var(--color-warning-bg); }
 
 .cal-wk__day-col.is-closure { background: #f8f9fa; }
+
+.cal-wk__day-col.is-evento  { background: color-mix(in srgb, var(--cal-evento) 6%, transparent); }
 
 
 /* ── Slot de hora (fondo) ── */

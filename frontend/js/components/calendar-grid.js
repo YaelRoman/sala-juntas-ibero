@@ -103,6 +103,7 @@ const CalendarGrid = (() => {
     const special   = specialDates[dateStr];
     const isHoliday = special?.type === 'holiday';
     const isClosed  = special?.type === 'closure';
+    const isEvento  = special?.type === 'evento';
     const dayOfWeek = new Date(year, month, d).getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const isToday   = dateStr === todayStr;
@@ -113,6 +114,7 @@ const CalendarGrid = (() => {
       isToday     ? 'is-today'    : '',
       isHoliday   ? 'is-holiday'  : '',
       isClosed    ? 'is-closed'   : '',
+      isEvento    ? 'is-evento'   : '',
       isWeekend   ? 'is-weekend'  : '',
       isClickable ? 'is-clickable': '',
     ].filter(Boolean).join(' ');

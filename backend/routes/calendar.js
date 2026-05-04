@@ -26,8 +26,8 @@ router.post('/holidays', auth, requireRole('secretaria'), async (req, res) => {
     return res.status(400).json({ error: 'date, name, and type required' });
   }
 
-  if (!['holiday', 'closure'].includes(type)) {
-    return res.status(400).json({ error: 'type must be "holiday" or "closure"' });
+  if (!['holiday', 'closure', 'evento'].includes(type)) {
+    return res.status(400).json({ error: 'type must be "holiday", "closure", or "evento"' });
   }
 
   try {

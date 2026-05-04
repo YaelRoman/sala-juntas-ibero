@@ -875,7 +875,7 @@ function _openHolidayPopover(anchorEl, dateStr) {
       </div>
       <div class="hpop__header-text">
         <span class="cal-popup__title">${Utils.formatDateShort(dateStr)}</span>
-        <span class="hpop__header-sub">${existing ? (existing.type === 'holiday' ? 'Día festivo' : 'Cierre institucional') : 'Marcar fecha'}</span>
+        <span class="hpop__header-sub">${existing ? (existing.type === 'holiday' ? 'Día festivo' : existing.type === 'closure' ? 'Cierre institucional' : 'Evento') : 'Marcar fecha'}</span>
       </div>
       <button class="cal-popup__close" id="holiday-pop-close" aria-label="Cerrar">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -889,8 +889,8 @@ function _openHolidayPopover(anchorEl, dateStr) {
         <div class="hpop__existing">
           <div class="hpop__existing-name">${Utils.escapeHTML(existing.name)}</div>
           <div class="hpop__existing-type">
-            <span class="badge ${existing.type === 'holiday' ? 'badge-warning' : 'badge-neutral'}">
-              ${existing.type === 'holiday' ? 'Festivo' : 'Cierre'}
+            <span class="badge ${existing.type === 'holiday' ? 'badge-warning' : existing.type === 'evento' ? 'badge-info' : 'badge-neutral'}">
+              ${existing.type === 'holiday' ? 'Festivo' : existing.type === 'evento' ? 'Evento' : 'Cierre'}
             </span>
           </div>
         </div>
@@ -931,6 +931,16 @@ function _openHolidayPopover(anchorEl, dateStr) {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
                 Cierre
+              </span>
+            </label>
+            <label class="hpop__type-opt">
+              <input type="radio" name="holiday-pop-type" value="evento" />
+              <span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                Evento
               </span>
             </label>
           </div>

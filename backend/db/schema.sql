@@ -46,7 +46,7 @@ CREATE TABLE calendar_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   date DATE NOT NULL,
   name VARCHAR(200) NOT NULL,
-  type VARCHAR(20) NOT NULL CHECK (type IN ('holiday', 'closure')),
+  type VARCHAR(20) NOT NULL CHECK (type IN ('holiday', 'closure', 'evento')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

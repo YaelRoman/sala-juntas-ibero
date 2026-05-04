@@ -15,6 +15,9 @@ const Holidays = (() => {
   /** Devuelve sólo los cierres institucionales */
   const getClosures = () => getAll().filter(h => h.type === 'closure');
 
+  /** Devuelve sólo los eventos (no bloquean reservaciones) */
+  const getEvents = () => getAll().filter(h => h.type === 'evento');
+
   /* ── ESCRITURA ── */
 
   /**
@@ -88,10 +91,15 @@ const Holidays = (() => {
     }
 
     el.innerHTML = all.map(h => {
-      const isHoliday = h.type === 'holiday';
-      const typeLabel = isHoliday ? 'Día Festivo' : 'Cierre Inst.';
-      const typeCls   = isHoliday ? 'badge-warning' : 'badge-neutral';
-      const dotColor  = isHoliday ? 'var(--cal-holiday)' : 'var(--cal-closed)';
+      const typeLabel = h.type === 'holiday' ? 'Día Festivo'
+                      : h.type === 'closure' ? 'Cierre Inst.'
+                      : 'Evento';
+      const typeCls   = h.type === 'holiday' ? 'badge-warning'
+                      : h.type === 'evento'  ? 'badge-info'
+                      : 'badge-neutral';
+      const dotColor  = h.type === 'holiday' ? 'var(--cal-holiday)'
+                      : h.type === 'evento'  ? 'var(--cal-evento)'
+                      : 'var(--cal-closed)';
       const conflicts = conflictCount(h.date);
       return `
         <div class="holiday-item" role="listitem">
@@ -135,6 +143,7 @@ const Holidays = (() => {
     getAll,
     getHolidays,
     getClosures,
+    getEvents,
     add,
     remove,
     conflictCount,
