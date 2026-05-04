@@ -16,6 +16,10 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
+pool.on('connect', (client) => {
+  client.query("SET TIME ZONE 'America/Mexico_City'");
+});
+
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
 });

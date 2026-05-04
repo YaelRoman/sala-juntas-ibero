@@ -18,7 +18,7 @@ router.use(auth);
 router.post('/recurring-group', requireRole('secretaria'), async (req, res) => {
   const { pattern, endDate, maxOccurrences } = req.body;
 
-  if (!pattern || !['weekly', 'biweekly', 'monthly'].includes(pattern)) {
+  if (!pattern || !['daily', 'weekly', 'biweekly', 'monthly'].includes(pattern)) {
     return res.status(400).json({ error: 'Invalid pattern' });
   }
 

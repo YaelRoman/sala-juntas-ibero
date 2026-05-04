@@ -10,13 +10,14 @@ const ReservationModal = (() => {
   let _users     = [];
   let _onSaved   = null;
   let _aiEnabled = false;
+  let _prefill   = null;  // { responsible_id, area, observations }
 
   /**
    * @param {object}   opts
    * @param {Array}    opts.intervals  — [{date, startTime, endTime}, ...]
    * @param {Function} [opts.onSaved]  — (createdArray) => void
    */
-  const open = async ({ intervals = [], onSaved = null } = {}) => {
+  const open = async ({ intervals = [], onSaved = null, prefill = null } = {}) => {
     if (!intervals.length) {
       Toast?.show('Selecciona al menos una hora antes de reservar.', 'warning');
       return;
@@ -26,6 +27,7 @@ const ReservationModal = (() => {
     _intervals = intervals.map(iv => ({ ...iv }));
     _intervals = _adjustForPartialOccupancy(_intervals);
     _onSaved   = onSaved;
+    _prefill   = prefill;
 
     try {
       const [users, ai] = await Promise.all([
@@ -300,6 +302,7 @@ const ReservationModal = (() => {
                 <div class="rmodal__field">
                   <label for="rmodal-recur-freq">Frecuencia</label>
                   <select id="rmodal-recur-freq" class="form-select">
+                    <option value="daily">Diaria</option>
                     <option value="weekly">Semanal</option>
                     <option value="biweekly">Quincenal</option>
                     <option value="monthly">Mensual</option>
@@ -335,6 +338,14 @@ const ReservationModal = (() => {
 
     const respSel = overlay.querySelector('#rmodal-responsible');
     if (respSel) _populateResponsibleSelect(respSel);
+
+    if (_prefill) {
+      if (_prefill.responsible_id) respSel.value = String(_prefill.responsible_id);
+      const areaEl = overlay.querySelector('#rmodal-area');
+      const obsEl  = overlay.querySelector('#rmodal-obs');
+      if (areaEl && _prefill.area)         areaEl.value = _prefill.area;
+      if (obsEl  && _prefill.observations) obsEl.value  = _prefill.observations;
+    }
 
     _wireEvents();
     respSel?.focus();
@@ -532,8 +543,8 @@ const ReservationModal = (() => {
 
     // Normal multi-interval path
     const intervals = _intervals.map(iv => ({
-      start_time: `${iv.date}T${iv.startTime}:00Z`,
-      end_time:   `${iv.date}T${iv.endTime}:00Z`,
+      start_time: `${iv.date}T${iv.startTime}:00`,
+      end_time:   `${iv.date}T${iv.endTime}:00`,
     }));
 
     try {

@@ -1,7 +1,7 @@
 /* ============================================================
    CALENDAR-WEEK.JS — Componente de vista semanal
    HU-04 (disponibilidad), HU-06 (responsable), HU-07 (navegación)
-   Soporta selección de múltiples horas (click, arrastre, Ctrl+click)
+   Soporta selección de múltiples horas (click, arrastre, Ctrl+click, Shift+click para rango)
    Plataforma Reservación Sala de Juntas · Ibero CDMX
    ============================================================ */
 
@@ -22,6 +22,7 @@ const CalendarWeek = (() => {
   let _partialBlocks  = new Map();   // key -> [{top, height}] px dentro del slot
   let _dragAnchor     = null;        // {dateIso, hour, additive}
   let _dragMoved      = false;
+  let _lastClickedSlot = null;       // {dateIso, hour} para Shift+Click
 
   /* ── ESTADO INTERNO DE ARRASTRE DE BLOQUES ── */
   let _reservationMap     = new Map(); // id -> reservation (para drag-to-reschedule)
@@ -79,6 +80,7 @@ const CalendarWeek = (() => {
     _disabledKeys    = new Set();
     _partialBlocks  = new Map();
     _reservationMap = new Map();
+    _lastClickedSlot = null;
     reservations.forEach(r => _reservationMap.set(r.id, r));
 
     const days       = _buildDays(weekStart);
@@ -609,7 +611,21 @@ const CalendarWeek = (() => {
     if (!slot) return;
     e.preventDefault();
 
-    const additive = e.ctrlKey || e.metaKey || e.shiftKey;
+    const isShift = e.shiftKey;
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const additive = isCtrl || isShift;
+
+    // Shift+Click on same day with prior selection: select range
+    if (isShift && !isCtrl && _lastClickedSlot && _lastClickedSlot.dateIso === slot.dateIso) {
+      _dragAnchor = { ...slot, additive: false };
+      _selectRange(_lastClickedSlot, slot);
+      _applySelectionStyles();
+      _emitSelectionChange();
+      _dragMoved = false;
+      _lastClickedSlot = slot;
+      return;
+    }
+
     if (!additive) _selection.clear();
 
     _dragAnchor = { ...slot, additive };
@@ -618,6 +634,8 @@ const CalendarWeek = (() => {
     _toggleKey(`${slot.dateIso}|${slot.hour}`, true);
     _applySelectionStyles();
     _emitSelectionChange();
+
+    _lastClickedSlot = slot;
   };
 
   const _onMouseMove = (e) => {

@@ -16,7 +16,7 @@ CREATE TABLE users (
 -- Recurring groups
 CREATE TABLE recurring_groups (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  pattern VARCHAR(20) NOT NULL CHECK (pattern IN ('weekly', 'biweekly', 'monthly')),
+  pattern VARCHAR(20) NOT NULL CHECK (pattern IN ('daily', 'weekly', 'biweekly', 'monthly')),
   end_date DATE,
   max_occurrences INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()

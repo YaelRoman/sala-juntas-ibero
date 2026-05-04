@@ -19,7 +19,7 @@ const Recurring = (() => {
    * @param {string} opts.responsible
    * @param {string} opts.area
    * @param {string} [opts.observations]
-   * @param {'weekly'|'biweekly'|'monthly'} opts.frequency
+   * @param {'daily'|'weekly'|'biweekly'|'monthly'} opts.frequency
    * @param {number} opts.count
    * @param {string} [opts.endDate]
    * @returns {{ group, instances, skipped }}
@@ -144,8 +144,8 @@ const Recurring = (() => {
         const apiData = {
           responsible_id: r.responsible_id,
           area: r.area,
-          start_time: `${r.date}T${r.startTime}:00Z`,
-          end_time: `${r.date}T${r.endTime}:00Z`,
+          start_time: `${r.date}T${r.startTime}:00`,
+          end_time: `${r.date}T${r.endTime}:00`,
           observations: r.observations,
           is_recurring: true,
           recurring_group: actualGroupId,
@@ -195,6 +195,7 @@ const Recurring = (() => {
   /* ── HELPERS ── */
   const _advance = (date, frequency) => {
     switch (frequency) {
+      case 'daily':    date.setDate(date.getDate() + 1);  break;
       case 'weekly':   date.setDate(date.getDate() + 7);  break;
       case 'biweekly': date.setDate(date.getDate() + 14); break;
       case 'monthly':  date.setMonth(date.getMonth() + 1); break;

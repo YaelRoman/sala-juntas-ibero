@@ -60,16 +60,29 @@ const API = (() => {
     return str ? `?${str}` : '';
   };
 
+  const _TZ = 'America/Mexico_City';
+  const _utcToLocal = (iso) => {
+    const d = new Date(iso);
+    return {
+      date: d.toLocaleDateString('en-CA', { timeZone: _TZ }),
+      time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: _TZ }),
+    };
+  };
+
   // Normalize API responses to frontend format
-  const _normalizeReservation = (r) => ({
-    ...r,
-    date: r.start_time.split('T')[0],
-    startTime: r.start_time.split('T')[1].substring(0, 5),
-    endTime: r.end_time.split('T')[1].substring(0, 5),
-    responsible: r.responsible_name,
-    isRecurring: r.is_recurring,
-    recurringGroupId: r.recurring_group
-  });
+  const _normalizeReservation = (r) => {
+    const start = _utcToLocal(r.start_time);
+    const end   = _utcToLocal(r.end_time);
+    return {
+      ...r,
+      date:             start.date,
+      startTime:        start.time,
+      endTime:          end.time,
+      responsible:      r.responsible_name,
+      isRecurring:      r.is_recurring,
+      recurringGroupId: r.recurring_group,
+    };
+  };
 
   const _normalizeHoliday = (h) => ({
     ...h,

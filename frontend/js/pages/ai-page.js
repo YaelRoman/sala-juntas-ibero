@@ -316,8 +316,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function _onSave() {
     const data = {
-      start_time:     `${propDate?.value}T${propStart?.value}:00Z`,
-      end_time:       `${propDate?.value}T${propEnd?.value}:00Z`,
+      start_time:     `${propDate?.value}T${propStart?.value}:00`,
+      end_time:       `${propDate?.value}T${propEnd?.value}:00`,
       responsible_id: propRespon?.value,
       area:           propArea?.value?.trim(),
       observations:   propObs?.value?.trim() ?? '',

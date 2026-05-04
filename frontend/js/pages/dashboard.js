@@ -384,6 +384,27 @@ function _initEventListeners() {
       window.location.href = 'reservacion.html';
     });
   });
+
+  // Atajos de teclado: Ctrl+C en bloque, Ctrl+V en slot
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (Calendar.getCurrentView() !== 'week') return;
+
+    if (e.key === 'c' || e.key === 'C') {
+      const el = document.activeElement?.closest('.cal-wk__event[data-id]');
+      if (!el) return;
+      e.preventDefault();
+      _copyReservation(el.dataset.id);
+    }
+
+    if (e.key === 'v' || e.key === 'V') {
+      if (!_clipboard) return;
+      const el = document.activeElement?.closest('.cal-wk__slot[data-date][data-hour]');
+      if (!el) return;
+      e.preventDefault();
+      _pasteReservation(el.dataset.date, el.dataset.hour);
+    }
+  });
 }
 
 /* ════════════════════════════════════════
@@ -443,6 +464,69 @@ function _openReservationModalFromSelection() {
 }
 
 /* ════════════════════════════════════════
+   PORTAPAPELES
+   ════════════════════════════════════════ */
+let _clipboard = null; // { responsible_id, area, observations, durationMin }
+
+function _copyReservation(id) {
+  const r = Store.getState().reservations.find(res => res.id === id);
+  if (!r) return;
+  const [sh, sm] = r.startTime.split(':').map(Number);
+  const [eh, em] = r.endTime.split(':').map(Number);
+  _clipboard = {
+    responsible_id: r.responsible_id,
+    area:           r.area,
+    observations:   r.observations || '',
+    durationMin:    (eh * 60 + em) - (sh * 60 + sm),
+  };
+  Toast.show('Reservación copiada. Click derecho en un horario libre para pegar.', 'success');
+}
+
+function _pasteReservation(dateStr, startTime) {
+  if (!_clipboard) return;
+  const [sh, sm]  = startTime.split(':').map(Number);
+  const endTotalMin = sh * 60 + sm + _clipboard.durationMin;
+
+  if (endTotalMin > 20 * 60) {
+    Toast.show('La reservación no cabe en el horario disponible.', 'warning');
+    return;
+  }
+
+  const endH    = Math.floor(endTotalMin / 60);
+  const endM    = endTotalMin % 60;
+  const endTime = `${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}`;
+
+  if (_dragHasConflict(null, dateStr, startTime, endTime)) {
+    Toast.show('El horario ya está ocupado por otra reservación.', 'warning');
+    return;
+  }
+
+  ReservationModal.open({
+    intervals: [{ date: dateStr, startTime, endTime }],
+    prefill:   {
+      responsible_id: _clipboard.responsible_id,
+      area:           _clipboard.area,
+      observations:   _clipboard.observations,
+    },
+    onSaved: async () => {
+      try {
+        const reservations = await API.getReservations();
+        Store.setState({ reservations });
+      } catch (err) {
+        console.error('Refresh after paste failed:', err);
+      }
+      _renderStats();
+      _renderUpcoming();
+      if (Calendar.getCurrentView() === 'week') {
+        Calendar.renderWeek(new Date(`${dateStr}T00:00:00`), Calendar.getHighlightDate());
+      } else {
+        Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+      }
+    },
+  });
+}
+
+/* ════════════════════════════════════════
    MENÚS CONTEXTUALES (click derecho)
    Vista mensual  → popover de festivo/cierre
    Vista semanal  → menú con 2 opciones
@@ -472,6 +556,12 @@ function _initContextMenus() {
     }
 
     if (view === 'week') {
+      const block = e.target.closest('.cal-wk__event[data-id]');
+      if (block) {
+        e.preventDefault();
+        _openReservationContextMenu(block.dataset.id, e.clientX, e.clientY);
+        return;
+      }
       const col = e.target.closest('.cal-wk__day-col[data-date]');
       if (!col) return;
       const date = col.dataset.date;
@@ -485,12 +575,58 @@ function _closeWeekContextMenu() {
   document.getElementById('wk-ctx-menu')?.remove();
 }
 
+function _openReservationContextMenu(id, x, y) {
+  _closeWeekContextMenu();
+  document.getElementById('holiday-popover')?.remove();
+
+  const menu = document.createElement('div');
+  menu.id        = 'wk-ctx-menu';
+  menu.className = 'wk-ctx-menu';
+  menu.innerHTML = `
+    <button class="wk-ctx-menu__item" id="wk-ctx-copy">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      Copiar reservación
+    </button>`;
+
+  document.body.appendChild(menu);
+
+  const mw = 220, mh = 50;
+  const left = x + mw > window.innerWidth  - 8 ? x - mw : x;
+  const top  = y + mh > window.innerHeight - 8 ? y - mh : y;
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top  = `${Math.max(8, top)}px`;
+
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('mousedown', onOutside);
+  };
+  const onKey     = (e) => { if (e.key === 'Escape') close(); };
+  const onOutside = (e) => { if (!menu.contains(e.target)) close(); };
+  document.addEventListener('keydown', onKey);
+  setTimeout(() => document.addEventListener('mousedown', onOutside), 50);
+
+  document.getElementById('wk-ctx-copy').addEventListener('click', () => {
+    close();
+    _copyReservation(id);
+  });
+}
+
 function _openWeekContextMenu(dateStr, x, y) {
   _closeWeekContextMenu();
   document.getElementById('holiday-popover')?.remove();
 
   const existing = (Store.getState().holidays || []).find(h => h.date === dateStr);
   const holidayLabel = existing ? 'Quitar marca de festivo' : 'Marcar como festivo';
+
+  // Detect the 30-min slot under the cursor for paste targeting
+  const slotEl   = document.elementFromPoint(x, y)?.closest('.cal-wk__slot[data-hour]');
+  const pasteTime = slotEl?.dataset.hour ?? null;
+  const canPaste  = _clipboard !== null && pasteTime !== null;
 
   const menu = document.createElement('div');
   menu.id = 'wk-ctx-menu';
@@ -513,12 +649,21 @@ function _openWeekContextMenu(dateStr, x, y) {
           : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}
       </svg>
       ${holidayLabel}
-    </button>`;
+    </button>
+    ${canPaste ? `
+    <button class="wk-ctx-menu__item" id="wk-ctx-paste">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+      </svg>
+      Pegar aquí (${pasteTime})
+    </button>` : ''}`;
 
   document.body.appendChild(menu);
 
   // Position at cursor, flip if overflowing
-  const mw = 220, mh = 80;
+  const mw = 220, mh = canPaste ? 120 : 80;
   const left = x + mw > window.innerWidth  - 8 ? x - mw : x;
   const top  = y + mh > window.innerHeight - 8 ? y - mh : y;
   menu.style.left = `${Math.max(8, left)}px`;
@@ -550,6 +695,13 @@ function _openWeekContextMenu(dateStr, x, y) {
     const col = document.querySelector(`.cal-wk__day-col[data-date="${dateStr}"]`);
     _openHolidayPopover(col || document.getElementById('calendar-body'), dateStr);
   });
+
+  if (canPaste) {
+    document.getElementById('wk-ctx-paste').addEventListener('click', () => {
+      close();
+      _pasteReservation(dateStr, pasteTime);
+    });
+  }
 }
 
 function _openHolidayPopover(anchorEl, dateStr) {

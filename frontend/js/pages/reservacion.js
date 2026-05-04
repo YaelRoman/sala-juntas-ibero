@@ -307,8 +307,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('[Submit] Validation passed');
 
     const data = {
-      start_time:     `${fieldDate.value}T${fieldStart.value}:00Z`,
-      end_time:       `${fieldDate.value}T${fieldEnd.value}:00Z`,
+      start_time:     `${fieldDate.value}T${fieldStart.value}:00`,
+      end_time:       `${fieldDate.value}T${fieldEnd.value}:00`,
       responsible_id: fieldResp.value,
       area:           fieldArea.value.trim(),
       observations:   fieldObs.value.trim(),
