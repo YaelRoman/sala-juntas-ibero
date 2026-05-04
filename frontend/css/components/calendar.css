@@ -776,6 +776,10 @@
   cursor: pointer;
 }
 
+.cal-wk__slot[data-hour$=":30"] {
+  border-bottom: 1px dashed rgba(0,0,0,0.04);
+}
+
 .cal-wk__slot.is-clickable:hover,
 .cal-wk__slot.is-clickable:focus {
   /* background-color leaves background-image (partial gradient) intact */
@@ -817,6 +821,24 @@
 .cal-wk__day-col.is-highlight {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
+}
+
+/* ── Handle de redimensionado (borde inferior del bloque) ── */
+.cal-wk__event-resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: rgba(0,0,0,0.12);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.cal-wk__event:hover .cal-wk__event-resize-handle {
+  opacity: 1;
 }
 
 /* ── Bloque de evento ── */
@@ -869,4 +891,73 @@
   .cal-wk__ev-time    { display: none; }
   .cal-wk__ev-name    { font-size: 10px; }
   .cal-wk__daynum     { width: 22px; height: 22px; font-size: var(--font-size-xs); }
+}
+
+/* ══════════════════════════════════════════════════════
+   DRAG-TO-RESCHEDULE
+   ══════════════════════════════════════════════════════ */
+
+/* Original block while being dragged */
+.cal-wk__event.is-dragging {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Floating ghost that follows the cursor */
+.cal-wk__event--ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 900;
+  opacity: 0.88;
+  box-shadow: var(--shadow-xl);
+  cursor: grabbing;
+  will-change: transform;
+}
+
+/* Drop target slot highlight */
+.cal-wk__slot.is-drop-target {
+  background-color: rgba(31, 119, 220, 0.22) !important;
+  border-left: 3px solid var(--color-primary) !important;
+  box-shadow: inset 0 0 0 2px rgba(31, 119, 220, 0.45);
+}
+
+/* ── Contextual confirmation overlay ── */
+.drag-confirm-overlay {
+  position: fixed;
+  z-index: 700;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 250px;
+  overflow: hidden;
+  animation: popupIn 0.12s ease;
+}
+
+.drag-overlay__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.drag-overlay__body {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-secondary);
+  line-height: 1.6;
+}
+
+.drag-overlay__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-top: 1px solid var(--color-border);
 }

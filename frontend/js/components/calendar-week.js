@@ -9,8 +9,8 @@ const CalendarWeek = (() => {
 
   const HOUR_START = 7;
   const HOUR_END   = 20;
-  const SLOT_H     = 60;                              // px por hora
-  const TOTAL_H    = (HOUR_END - HOUR_START) * SLOT_H; // 720px
+  const SLOT_H     = 30;                              // px por slot de 30 min
+  const TOTAL_H    = (HOUR_END - HOUR_START) * 60;   // 780px (1px = 1 min)
 
   /* ── ESTADO INTERNO DE SELECCIÓN ── */
   let _selection      = new Set();   // claves "YYYY-MM-DD|HH:MM"
@@ -22,6 +22,18 @@ const CalendarWeek = (() => {
   let _partialBlocks  = new Map();   // key -> [{top, height}] px dentro del slot
   let _dragAnchor     = null;        // {dateIso, hour, additive}
   let _dragMoved      = false;
+
+  /* ── ESTADO INTERNO DE ARRASTRE DE BLOQUES ── */
+  let _reservationMap     = new Map(); // id -> reservation (para drag-to-reschedule)
+  let _onBlockDropCb      = null;
+  let _blockDrag          = null;      // {id, reservation, origEl, startX, startY, active, ghostEl, dropDate, dropHour, dropSlotEl}
+  let _blockDragWired     = false;
+  let _blockDragWasActive = false;
+
+  /* ── ESTADO INTERNO DE REDIMENSIONADO ── */
+  let _onBlockResizeCb = null;
+  let _resizeDrag      = null;   // {id, reservation, origEl, startY, origEndMin, active, newEndMin}
+  let _resizeWired     = false;
 
   /* ════════════════════════════════════════
      PUBLIC: render
@@ -52,16 +64,22 @@ const CalendarWeek = (() => {
     onReservationClick  = null,
     onSelectionChange   = null,
     onCommitSelection   = null,
+    onBlockDrop         = null,
+    onBlockResize       = null,
   }) => {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    _container     = container;
-    _selectable    = Boolean(editable && selectable);
-    _onSelectionCb = onSelectionChange;
-    _onCommitCb    = onCommitSelection;
-    _disabledKeys  = new Set();
-    _partialBlocks = new Map();
+    _container      = container;
+    _selectable     = Boolean(editable && selectable);
+    _onSelectionCb  = onSelectionChange;
+    _onCommitCb     = onCommitSelection;
+    _onBlockDropCb   = onBlockDrop;
+    _onBlockResizeCb = onBlockResize;
+    _disabledKeys    = new Set();
+    _partialBlocks  = new Map();
+    _reservationMap = new Map();
+    reservations.forEach(r => _reservationMap.set(r.id, r));
 
     const days       = _buildDays(weekStart);
     const todayStr   = Utils.today();
@@ -88,36 +106,40 @@ const CalendarWeek = (() => {
     days.forEach(d => {
       const occ = resByDate[d.iso] || [];
       for (let h = HOUR_START; h < HOUR_END; h++) {
-        const slotStart = h * 60;
-        const slotEnd   = slotStart + 60;
-        const key       = `${d.iso}|${String(h).padStart(2,'0')}:00`;
+        for (let m = 0; m < 60; m += 30) {
+          const slotStart = h * 60 + m;
+          const slotEnd   = slotStart + 30;
+          const timeStr   = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+          const key       = `${d.iso}|${timeStr}`;
 
-        // Full occupancy: reservation covers the entire hour → disable slot
-        const isFullyOccupied = occ.some(r => {
-          const [sh, sm] = r.startTime.split(':').map(Number);
-          const [eh, em] = r.endTime.split(':').map(Number);
-          const rs = sh * 60 + sm, re = eh * 60 + em;
-          return rs <= slotStart && re >= slotEnd;
-        });
-        if (isFullyOccupied) { _disabledKeys.add(key); continue; }
+          // Full occupancy: reservation covers the entire slot → disable slot
+          const isFullyOccupied = occ.some(r => {
+            const [sh, sm] = r.startTime.split(':').map(Number);
+            const [eh, em] = r.endTime.split(':').map(Number);
+            const rs = sh * 60 + sm, re = eh * 60 + em;
+            return rs <= slotStart && re >= slotEnd;
+          });
+          if (isFullyOccupied) { _disabledKeys.add(key); continue; }
 
-        // Partial occupancy: reservation overlaps but doesn't fully cover → render strip
-        const strips = [];
-        occ.forEach(r => {
-          const [sh, sm] = r.startTime.split(':').map(Number);
-          const [eh, em] = r.endTime.split(':').map(Number);
-          const rs = sh * 60 + sm, re = eh * 60 + em;
-          if (rs < slotEnd && re > slotStart) {
-            const top    = Math.max(rs, slotStart) - slotStart; // px from slot top
-            const height = Math.min(re, slotEnd) - Math.max(rs, slotStart);
-            strips.push({ top, height });
-          }
-        });
-        if (strips.length) _partialBlocks.set(key, strips);
+          // Partial occupancy: reservation overlaps but doesn't fully cover → render strip
+          const strips = [];
+          occ.forEach(r => {
+            const [sh, sm] = r.startTime.split(':').map(Number);
+            const [eh, em] = r.endTime.split(':').map(Number);
+            const rs = sh * 60 + sm, re = eh * 60 + em;
+            if (rs < slotEnd && re > slotStart) {
+              const top    = Math.max(rs, slotStart) - slotStart; // px from slot top
+              const height = Math.min(re, slotEnd) - Math.max(rs, slotStart);
+              strips.push({ top, height });
+            }
+          });
+          if (strips.length) _partialBlocks.set(key, strips);
+        }
       }
       if (d.isWeekend || holidaySet.has(d.iso)) {
         for (let h = HOUR_START; h < HOUR_END; h++) {
           _disabledKeys.add(`${d.iso}|${String(h).padStart(2,'0')}:00`);
+          _disabledKeys.add(`${d.iso}|${String(h).padStart(2,'0')}:30`);
         }
       }
     });
@@ -196,7 +218,7 @@ const CalendarWeek = (() => {
     let labels = '';
     for (let h = HOUR_START; h <= HOUR_END; h++) {
       labels += `<span class="cal-wk__hour-label"
-                       style="top:${(h - HOUR_START) * SLOT_H}px"
+                       style="top:${(h - HOUR_START) * 60}px"
                        aria-hidden="true">
                    ${String(h).padStart(2, '0')}:00
                  </span>`;
@@ -219,45 +241,48 @@ const CalendarWeek = (() => {
 
     let slots = '';
     for (let h = HOUR_START; h < HOUR_END; h++) {
-      const timeStr = `${String(h).padStart(2, '0')}:00`;
-      const key     = `${d.iso}|${timeStr}`;
-      const isOccupied = _disabledKeys.has(key) && !isDisabled;
-      const canClick = editable && !isDisabled && !isOccupied;
+      for (let m = 0; m < 60; m += 30) {
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2,'0')}`;
+        const topPx   = (h - HOUR_START) * 60 + m;
+        const key     = `${d.iso}|${timeStr}`;
+        const isOccupied = _disabledKeys.has(key) && !isDisabled;
+        const canClick = editable && !isDisabled && !isOccupied;
 
-      const strips = _partialBlocks.get(key) || [];
-      const hasPartial = strips.length > 0;
+        const strips = _partialBlocks.get(key) || [];
+        const hasPartial = strips.length > 0;
 
-      const slotCls = [
-        'cal-wk__slot',
-        canClick    ? 'is-clickable' : '',
-        isOccupied  ? 'is-occupied'  : '',
-        hasPartial  ? 'has-partial'  : '',
-      ].filter(Boolean).join(' ');
+        const slotCls = [
+          'cal-wk__slot',
+          canClick    ? 'is-clickable' : '',
+          isOccupied  ? 'is-occupied'  : '',
+          hasPartial  ? 'has-partial'  : '',
+        ].filter(Boolean).join(' ');
 
-      // Inline background-image gradient paints the occupied sub-range in red.
-      // Using background-image (not background shorthand) lets background-color
-      // from .is-selected / hover rules coexist on the same element.
-      let partialBg = '';
-      if (hasPartial) {
-        const stops = [];
-        strips.forEach(s => {
-          const s0 = (s.top / SLOT_H * 100).toFixed(1);
-          const s1 = ((s.top + s.height) / SLOT_H * 100).toFixed(1);
-          stops.push(`transparent ${s0}%`);
-          stops.push(`rgba(220,38,38,0.25) ${s0}%`);
-          stops.push(`rgba(220,38,38,0.25) ${s1}%`);
-          stops.push(`transparent ${s1}%`);
-        });
-        partialBg = `background-image:linear-gradient(to bottom,${stops.join(',')});`;
+        // Inline background-image gradient paints the occupied sub-range in red.
+        // Using background-image (not background shorthand) lets background-color
+        // from .is-selected / hover rules coexist on the same element.
+        let partialBg = '';
+        if (hasPartial) {
+          const stops = [];
+          strips.forEach(s => {
+            const s0 = (s.top / SLOT_H * 100).toFixed(1);
+            const s1 = ((s.top + s.height) / SLOT_H * 100).toFixed(1);
+            stops.push(`transparent ${s0}%`);
+            stops.push(`rgba(220,38,38,0.25) ${s0}%`);
+            stops.push(`rgba(220,38,38,0.25) ${s1}%`);
+            stops.push(`transparent ${s1}%`);
+          });
+          partialBg = `background-image:linear-gradient(to bottom,${stops.join(',')});`;
+        }
+
+        slots += `<div class="${slotCls}"
+                       style="top:${topPx}px;height:${SLOT_H}px;${partialBg}"
+                       data-date="${d.iso}" data-hour="${timeStr}"
+                       ${canClick
+                         ? `role="button" tabindex="0" aria-label="Reservar el ${d.iso} a las ${timeStr}"`
+                         : 'aria-hidden="true"'}
+                 ></div>`;
       }
-
-      slots += `<div class="${slotCls}"
-                     style="top:${(h - HOUR_START) * SLOT_H}px;height:${SLOT_H}px;${partialBg}"
-                     data-date="${d.iso}" data-hour="${timeStr}"
-                     ${canClick
-                       ? `role="button" tabindex="0" aria-label="Reservar el ${d.iso} a las ${timeStr}"`
-                       : 'aria-hidden="true"'}
-               ></div>`;
     }
 
     const blocks = reservations.map(r => _buildEvent(r)).join('');
@@ -288,6 +313,7 @@ const CalendarWeek = (() => {
            aria-label="${Utils.escapeHTML(r.responsible)}, ${r.startTime}–${r.endTime}">
         ${showTime ? `<span class="cal-wk__ev-time">${r.startTime}–${r.endTime}</span>` : ''}
         <span class="cal-wk__ev-name">${Utils.escapeHTML(Utils.truncate(r.responsible, 22))}</span>
+        <div class="cal-wk__event-resize-handle" aria-hidden="true"></div>
       </div>`;
   };
 
@@ -297,12 +323,19 @@ const CalendarWeek = (() => {
   const _attachEvents = (container, editable, onSlotClick, onReservationClick) => {
     // Eventos: bloques de reservación
     container.querySelectorAll('.cal-wk__event').forEach(el => {
-      const fire = (e) => { e.stopPropagation(); onReservationClick?.(el.dataset.id, e); };
+      const fire = (e) => {
+        if (_blockDragWasActive) { _blockDragWasActive = false; return; }
+        e.stopPropagation();
+        onReservationClick?.(el.dataset.id, e);
+      };
       el.addEventListener('click',   fire);
       el.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fire(e); }
       });
     });
+
+    if (editable && _onBlockResizeCb) _wireBlockResize(container);
+    if (editable && _onBlockDropCb)   _wireBlockDrag(container);
 
     if (!editable) return;
 
@@ -322,6 +355,232 @@ const CalendarWeek = (() => {
         });
       });
     }
+  };
+
+  /* ── ARRASTRE DE BLOQUES DE RESERVACIÓN (drag-to-reschedule) ── */
+
+  const _wireBlockDrag = (container) => {
+    if (_blockDragWired) return;
+    container.addEventListener('pointerdown', _onBlockPointerDown);
+    _blockDragWired = true;
+  };
+
+  /* ── REDIMENSIONADO DE BLOQUES (arrastrar borde inferior) ── */
+
+  const _wireBlockResize = (container) => {
+    if (_resizeWired) return;
+    container.addEventListener('pointerdown', _onResizePointerDown);
+    _resizeWired = true;
+  };
+
+  const _onResizePointerDown = (e) => {
+    if (e.button !== 0) return;
+    if (!e.target.closest('.cal-wk__event-resize-handle')) return;
+    e.stopPropagation();
+
+    const el = e.target.closest('.cal-wk__event');
+    if (!el) return;
+    const reservation = _reservationMap.get(el.dataset.id);
+    if (!reservation) return;
+
+    const [eh, em] = reservation.endTime.split(':').map(Number);
+    _resizeDrag = {
+      id:         el.dataset.id,
+      reservation,
+      origEl:     el,
+      startY:     e.clientY,
+      origEndMin: eh * 60 + em,
+      active:     false,
+      newEndMin:  eh * 60 + em,
+    };
+
+    document.addEventListener('pointermove', _onResizePointerMove);
+    document.addEventListener('pointerup',   _onResizePointerUp);
+  };
+
+  const _onResizePointerMove = (e) => {
+    if (!_resizeDrag) return;
+
+    const dy = e.clientY - _resizeDrag.startY;
+    if (!_resizeDrag.active) {
+      if (Math.abs(dy) < 5) return;
+      _resizeDrag.active = true;
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor     = 'ns-resize';
+    }
+
+    // Snap to 30-min grid (SLOT_H px = 30 min)
+    const deltaMin  = Math.round(dy / SLOT_H) * 30;
+    const [sh, sm]  = _resizeDrag.reservation.startTime.split(':').map(Number);
+    const minEndMin = sh * 60 + sm + 30;                       // at least 30 min
+    const newEndMin = Math.max(minEndMin, Math.min(HOUR_END * 60, _resizeDrag.origEndMin + deltaMin));
+    _resizeDrag.newEndMin = newEndMin;
+
+    // Update block height live
+    const startPx = (sh - HOUR_START) * 60 + sm;
+    const endPx   = newEndMin - HOUR_START * 60;
+    _resizeDrag.origEl.style.height = `${Math.max(SLOT_H, endPx - startPx)}px`;
+
+    // Update time label live
+    const timeEl = _resizeDrag.origEl.querySelector('.cal-wk__ev-time');
+    if (timeEl) {
+      const newEndH = Math.floor(newEndMin / 60);
+      const newEndM = newEndMin % 60;
+      timeEl.textContent = `${_resizeDrag.reservation.startTime}–${String(newEndH).padStart(2,'0')}:${String(newEndM).padStart(2,'0')}`;
+    }
+  };
+
+  const _onResizePointerUp = (e) => {
+    document.removeEventListener('pointermove', _onResizePointerMove);
+    document.removeEventListener('pointerup',   _onResizePointerUp);
+
+    if (!_resizeDrag) return;
+    const { active, id, reservation, newEndMin, origEl } = _resizeDrag;
+    _resizeDrag = null;
+
+    document.body.style.userSelect = '';
+    document.body.style.cursor     = '';
+
+    if (!active) return;
+
+    origEl.style.height = ''; // re-render will set the definitive height
+
+    const newEndH   = Math.floor(newEndMin / 60);
+    const newEndM   = newEndMin % 60;
+    const newEndStr = `${String(newEndH).padStart(2,'0')}:${String(newEndM).padStart(2,'0')}`;
+
+    if (newEndStr !== reservation.endTime) {
+      _onBlockResizeCb?.(id, reservation, newEndStr, e.clientX, e.clientY);
+    }
+  };
+
+  const _getColAtPoint = (x, y) => {
+    // .cal-wk__event--ghost has pointer-events:none in CSS, so this skips it
+    const el = document.elementFromPoint(x, y);
+    return el?.closest('.cal-wk__day-col') ?? null;
+  };
+
+  const _onBlockPointerDown = (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.cal-wk__event-resize-handle')) return; // handled by resize
+    const el = e.target.closest('.cal-wk__event');
+    if (!el) return;
+    e.stopPropagation();
+
+    _blockDragWasActive = false; // clear any stale flag from previous drag
+    const reservation = _reservationMap.get(el.dataset.id);
+    if (!reservation) return;
+
+    _blockDrag = {
+      id: el.dataset.id,
+      reservation,
+      origEl:      el,
+      startX:      e.clientX,
+      startY:      e.clientY,
+      active:      false,
+      ghostEl:     null,
+      dropDate:    null,
+      dropHour:    null,
+      dropMin:     null,
+      dropSlotEl:  null,
+    };
+
+    document.addEventListener('pointermove', _onBlockPointerMove);
+    document.addEventListener('pointerup',   _onBlockPointerUp);
+  };
+
+  const _onBlockPointerMove = (e) => {
+    if (!_blockDrag) return;
+
+    const dx = e.clientX - _blockDrag.startX;
+    const dy = e.clientY - _blockDrag.startY;
+
+    if (!_blockDrag.active) {
+      if (Math.hypot(dx, dy) < 5) return;
+
+      _blockDrag.active = true;
+      _blockDrag.origEl.classList.add('is-dragging');
+      document.body.style.userSelect = 'none';
+
+      const ghost = _blockDrag.origEl.cloneNode(true);
+      ghost.className = 'cal-wk__event cal-reservation cal-wk__event--ghost';
+      ghost.style.width  = `${_blockDrag.origEl.offsetWidth}px`;
+      ghost.style.height = `${_blockDrag.origEl.offsetHeight}px`;
+      document.body.appendChild(ghost);
+      _blockDrag.ghostEl = ghost;
+    }
+
+    // Move ghost to follow pointer
+    const g = _blockDrag.ghostEl;
+    g.style.transform = `translate3d(${e.clientX - _blockDrag.origEl.offsetWidth / 2}px, ${e.clientY - 20}px, 0)`;
+
+    // Find column under cursor
+    const col = _getColAtPoint(e.clientX, e.clientY);
+
+    // Clear previous slot highlight
+    if (_blockDrag.dropSlotEl) {
+      _blockDrag.dropSlotEl.classList.remove('is-drop-target');
+      _blockDrag.dropSlotEl = null;
+    }
+    _blockDrag.dropDate = null;
+    _blockDrag.dropHour = null;
+
+    if (!col ||
+        col.classList.contains('is-disabled') ||
+        col.classList.contains('is-holiday') ||
+        col.classList.contains('is-closure')) return;
+
+    const rect      = col.getBoundingClientRect();
+    const slotIndex = Math.floor((e.clientY - rect.top) / SLOT_H);
+    const slotMin   = HOUR_START * 60 + slotIndex * 30;
+    const dropHour  = Math.floor(slotMin / 60);
+    const dropMin   = slotMin % 60;
+    if (dropHour < HOUR_START || dropHour >= HOUR_END) return;
+
+    const timeStr = `${String(dropHour).padStart(2, '0')}:${String(dropMin).padStart(2, '0')}`;
+    const slotEl  = col.querySelector(`[data-hour="${timeStr}"]`);
+    if (slotEl) {
+      slotEl.classList.add('is-drop-target');
+      _blockDrag.dropSlotEl = slotEl;
+    }
+    _blockDrag.dropDate = col.dataset.date;
+    _blockDrag.dropHour = dropHour;
+    _blockDrag.dropMin  = dropMin;
+  };
+
+  const _onBlockPointerUp = (e) => {
+    document.removeEventListener('pointermove', _onBlockPointerMove);
+    document.removeEventListener('pointerup',   _onBlockPointerUp);
+
+    if (!_blockDrag) return;
+
+    const { active, origEl, ghostEl, dropSlotEl, dropDate, dropHour, dropMin, id, reservation } = _blockDrag;
+
+    origEl.classList.remove('is-dragging');
+    ghostEl?.remove();
+    dropSlotEl?.classList.remove('is-drop-target');
+    document.body.style.userSelect = '';
+
+    _blockDragWasActive = active;
+
+    if (active && dropDate !== null && dropHour !== null) {
+      const [sh, sm] = reservation.startTime.split(':').map(Number);
+      const [eh, em] = reservation.endTime.split(':').map(Number);
+      const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+
+      const newEndMin = dropHour * 60 + (dropMin ?? 0) + durationMin;
+
+      if (newEndMin <= HOUR_END * 60) {
+        const newStartTime = `${String(dropHour).padStart(2, '0')}:${String(dropMin ?? 0).padStart(2, '0')}`;
+        const newEndH      = Math.floor(newEndMin / 60);
+        const newEndM      = newEndMin % 60;
+        const newEndTime   = `${String(newEndH).padStart(2, '0')}:${String(newEndM).padStart(2, '0')}`;
+        _onBlockDropCb?.(id, reservation, { date: dropDate, startTime: newStartTime, endTime: newEndTime }, e.clientX, e.clientY);
+      }
+      // If overflow past HOUR_END, drop is silently cancelled
+    }
+
+    _blockDrag = null;
   };
 
   /* ── SELECCIÓN MULTI-HORA ──
@@ -411,12 +670,12 @@ const CalendarWeek = (() => {
       // Reiniciar selección con el rango actual desde el ancla
       _selection.clear();
     }
-    const aHour = parseInt(anchor.hour.slice(0, 2), 10);
-    const cHour = parseInt(current.hour.slice(0, 2), 10);
-    const lo = Math.min(aHour, cHour);
-    const hi = Math.max(aHour, cHour);
-    for (let h = lo; h <= hi; h++) {
-      const key = `${anchor.dateIso}|${String(h).padStart(2,'0')}:00`;
+    const _toMin  = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const _toTime = (min) => `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`;
+    const lo = Math.min(_toMin(anchor.hour), _toMin(current.hour));
+    const hi = Math.max(_toMin(anchor.hour), _toMin(current.hour));
+    for (let t = lo; t <= hi; t += 30) {
+      const key = `${anchor.dateIso}|${_toTime(t)}`;
       if (!_disabledKeys.has(key)) _selection.add(key);
     }
   };
@@ -452,25 +711,28 @@ const CalendarWeek = (() => {
       })
       .sort((a, b) => (a.date + a.hour).localeCompare(b.date + b.hour));
 
-  /** Devuelve la selección agrupada en intervalos contiguos (mismo día, horas consecutivas) */
+  /** Devuelve la selección agrupada en intervalos contiguos (mismo día, bloques de 30 min consecutivos) */
   const getIntervals = () => {
     const sorted = getSelection();
     const intervals = [];
     let cur = null;
     for (const s of sorted) {
-      const h = parseInt(s.hour.slice(0, 2), 10);
-      if (cur && cur.date === s.date && h === cur.endHour) {
-        cur.endHour = h + 1;
+      const [h, m] = s.hour.split(':').map(Number);
+      const startMin = h * 60 + m;
+      const endMin   = startMin + 30;
+      if (cur && cur.date === s.date && startMin === cur.endMin) {
+        cur.endMin = endMin;
       } else {
         if (cur) intervals.push(cur);
-        cur = { date: s.date, startHour: h, endHour: h + 1 };
+        cur = { date: s.date, startMin, endMin };
       }
     }
     if (cur) intervals.push(cur);
+    const _fmt = (min) => `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`;
     return intervals.map(iv => ({
       date:      iv.date,
-      startTime: `${String(iv.startHour).padStart(2,'0')}:00`,
-      endTime:   `${String(iv.endHour).padStart(2,'0')}:00`,
+      startTime: _fmt(iv.startMin),
+      endTime:   _fmt(iv.endMin),
     }));
   };
 

@@ -20,6 +20,8 @@ const Calendar = (() => {
   let _selectable         = false;
   let _onSelectionChange  = null;
   let _onCommitSelection  = null;
+  let _onBlockDrop        = null;
+  let _onBlockResize      = null;
   let _highlightDate      = null;
 
   /* ════════════════════════════════════════
@@ -42,6 +44,8 @@ const Calendar = (() => {
     _selectable         = opts.selectable          ?? false;
     _onSelectionChange  = opts.onSelectionChange   ?? null;
     _onCommitSelection  = opts.onCommitSelection   ?? null;
+    _onBlockDrop        = opts.onBlockDrop         ?? null;
+    _onBlockResize      = opts.onBlockResize       ?? null;
 
     const state = Store.getState();
     _year  = state.currentYear  ?? new Date().getFullYear();
@@ -111,6 +115,8 @@ const Calendar = (() => {
       onReservationClick: _onReservationClick,
       onSelectionChange:  _onSelectionChange,
       onCommitSelection:  _onCommitSelection,
+      onBlockDrop:        _onBlockDrop,
+      onBlockResize:      _onBlockResize,
     });
   };
 

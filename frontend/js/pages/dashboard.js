@@ -104,6 +104,8 @@ function _initCalendar() {
     onReservationClick: _onReservationClick,
     onSelectionChange:  _onSelectionChange,
     onCommitSelection:  _openReservationModalFromSelection,
+    onBlockDrop:        isSecretary ? _onBlockDrop   : null,
+    onBlockResize:      isSecretary ? _onBlockResize : null,
   });
 
   if (isSecretary) {
@@ -398,7 +400,13 @@ function _onSelectionChange(selected) {
     return;
   }
   bar.classList.remove('hidden');
-  countEl.textContent = `${selected.length} hora${selected.length !== 1 ? 's' : ''} seleccionada${selected.length !== 1 ? 's' : ''}`;
+  const totalMin  = selected.length * 30;
+  const hPart     = Math.floor(totalMin / 60);
+  const mPart     = totalMin % 60;
+  const timeLabel = hPart > 0 && mPart > 0 ? `${hPart}h ${mPart}min`
+                  : hPart > 0              ? `${hPart}h`
+                  :                          `${mPart}min`;
+  countEl.textContent = `${selected.length} bloque${selected.length !== 1 ? 's' : ''} · ${timeLabel}`;
 }
 
 function _hideSelectionBar() {
@@ -704,5 +712,344 @@ function _setViewActive(view) {
   document.getElementById('view-week')?.classList.toggle('active',  view === 'week');
   document.getElementById('view-month')?.setAttribute('aria-pressed', String(view === 'month'));
   document.getElementById('view-week')?.setAttribute('aria-pressed',  String(view === 'week'));
+}
+
+/* ════════════════════════════════════════
+   DRAG-TO-RESCHEDULE
+   ════════════════════════════════════════ */
+function _onBlockDrop(id, reservation, target, dropX, dropY) {
+  if (!target) return;
+
+  const { date, startTime, endTime } = target;
+
+  // No-op if dropped on same slot
+  if (reservation.date === date &&
+      reservation.startTime === startTime &&
+      reservation.endTime === endTime) return;
+
+  // Client-side conflict check (exclude the reservation being moved)
+  if (_dragHasConflict(id, date, startTime, endTime)) {
+    Modal.confirm(
+      {
+        title:       'Horario no disponible',
+        message:     `El horario <strong>${startTime}–${endTime}</strong> del ${Utils.formatDateLong(date)} ya está ocupado por otra reservación.`,
+        confirmText: 'Entendido',
+      },
+      () => {}
+    );
+    return;
+  }
+
+  if (reservation.isRecurring && reservation.recurringGroupId) {
+    Modal.choice(
+      {
+        title:       'Mover reservación recurrente',
+        message:     `<strong>${Utils.escapeHTML(reservation.responsible)}</strong><br>
+                      Esta reservación pertenece a una serie recurrente. ¿Qué deseas mover?`,
+        option1Text: 'Solo esta instancia',
+        option2Text: 'Toda la serie (misma hora)',
+      },
+      () => _showDragConfirmOverlay(id, reservation, target, dropX, dropY, false),
+      () => _showDragConfirmOverlay(id, reservation, target, dropX, dropY, true),
+    );
+  } else {
+    _showDragConfirmOverlay(id, reservation, target, dropX, dropY, false);
+  }
+}
+
+function _dragHasConflict(excludeId, date, startTime, endTime) {
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const newStart = sh * 60 + sm;
+  const newEnd   = eh * 60 + em;
+  return Store.getState().reservations.some(r => {
+    if (r.id === excludeId || r.status !== 'active' || r.date !== date) return false;
+    const [rsh, rsm] = r.startTime.split(':').map(Number);
+    const [reh, rem] = r.endTime.split(':').map(Number);
+    return (rsh * 60 + rsm) < newEnd && (reh * 60 + rem) > newStart;
+  });
+}
+
+function _showDragConfirmOverlay(id, reservation, target, dropX, dropY, moveSeries) {
+  document.getElementById('drag-confirm-overlay')?.remove();
+
+  const { date, startTime, endTime } = target;
+  const seriesBadge = moveSeries
+    ? `<span class="badge badge-warning" style="font-size:10px;display:inline-block;margin-top:4px;">Toda la serie</span>`
+    : '';
+
+  const overlay = document.createElement('div');
+  overlay.id        = 'drag-confirm-overlay';
+  overlay.className = 'drag-confirm-overlay';
+  overlay.setAttribute('role',       'dialog');
+  overlay.setAttribute('aria-label', 'Confirmar movimiento de reservación');
+
+  overlay.innerHTML = `
+    <div class="drag-overlay__header">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="5 9 2 12 5 15"/>
+        <polyline points="9 5 12 2 15 5"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <line x1="12" y1="2" x2="12" y2="22"/>
+      </svg>
+      ¿Confirmar movimiento?
+    </div>
+    <div class="drag-overlay__body">
+      <strong>${Utils.escapeHTML(reservation.responsible)}</strong><br>
+      ${Utils.formatDateLong(date)} · ${startTime}–${endTime}
+      ${seriesBadge}
+    </div>
+    <div class="drag-overlay__actions">
+      <button class="btn btn-ghost btn-sm"    id="drag-overlay-cancel">Cancelar</button>
+      <button class="btn btn-primary btn-sm"  id="drag-overlay-ok">Confirmar</button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  // Position near drop point, flip if overflowing viewport
+  const OW = 250, OH = 130;
+  let left = dropX + 12;
+  let top  = dropY - 40;
+  if (left + OW > window.innerWidth  - 8) left = dropX - OW - 12;
+  if (top  < 8)                           top  = 8;
+  if (top  + OH > window.innerHeight - 8) top  = window.innerHeight - OH - 8;
+  overlay.style.left = `${Math.max(8, left)}px`;
+  overlay.style.top  = `${Math.max(8, top)}px`;
+
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+
+  document.getElementById('drag-overlay-cancel').addEventListener('click', close);
+
+  document.getElementById('drag-overlay-ok').addEventListener('click', async () => {
+    close();
+    await _executeDragMove(id, reservation, target, moveSeries);
+  });
+
+  setTimeout(() => {
+    const onOutside = (e) => {
+      if (!overlay.contains(e.target)) {
+        close();
+        document.removeEventListener('click', onOutside);
+      }
+    };
+    document.addEventListener('click', onOutside);
+  }, 50);
+}
+
+async function _executeDragMove(id, reservation, target, moveSeries) {
+  const { date, startTime, endTime } = target;
+
+  try {
+    if (moveSeries) {
+      const group = Store.getState().reservations.filter(r =>
+        r.recurringGroupId === reservation.recurringGroupId && r.status === 'active'
+      );
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const dayDelta = Math.round(
+        (new Date(`${date}T00:00:00`) - new Date(`${reservation.date}T00:00:00`)) / msPerDay
+      );
+
+      if (dayDelta !== 0) {
+        const holidaySet = new Set((Store.getState().holidays || []).map(h => h.date));
+        const blocked = group.filter(r => {
+          const d = new Date(`${r.date}T00:00:00`);
+          d.setDate(d.getDate() + dayDelta);
+          const dow = d.getDay();
+          return dow === 0 || dow === 6 || holidaySet.has(Utils.dateToISO(d));
+        });
+        if (blocked.length) {
+          Modal.confirm(
+            {
+              title:       'Fechas no disponibles',
+              message:     `${blocked.length} instancia${blocked.length !== 1 ? 's caerían' : ' caería'} en fin de semana o día festivo. Mueve solo esta instancia o elige otro día.`,
+              confirmText: 'Entendido',
+            },
+            () => {}
+          );
+          return;
+        }
+      }
+
+      await Promise.all(group.map(r => {
+        const d = new Date(`${r.date}T00:00:00`);
+        d.setDate(d.getDate() + dayDelta);
+        const newDate = Utils.dateToISO(d);
+        return API.updateReservation(r.id, {
+          start_time: `${newDate}T${startTime}:00`,
+          end_time:   `${newDate}T${endTime}:00`,
+        });
+      }));
+      Toast.show(`Serie actualizada: ${group.length} instancia${group.length !== 1 ? 's' : ''}.`, 'success');
+    } else {
+      await API.updateReservation(id, {
+        start_time: `${date}T${startTime}:00`,
+        end_time:   `${date}T${endTime}:00`,
+      });
+      Toast.show('Reservación movida.', 'success');
+    }
+
+    const reservations = await API.getReservations();
+    Store.setState({ reservations });
+    _renderStats();
+    _renderUpcoming();
+    if (Calendar.getCurrentView() === 'week') {
+      Calendar.renderWeek(new Date(`${date}T00:00:00`), Calendar.getHighlightDate());
+    } else {
+      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    }
+  } catch (err) {
+    const msg = err?.status === 409
+      ? 'El horario ya está ocupado por otra reservación.'
+      : 'No se pudo mover la reservación. Intenta de nuevo.';
+    Toast.show(msg, 'error');
+  }
+}
+
+/* ════════════════════════════════════════
+   REDIMENSIONADO DE RESERVACIÓN
+   ════════════════════════════════════════ */
+function _onBlockResize(id, reservation, newEndTime, dropX, dropY) {
+  const { date, startTime } = reservation;
+
+  if (_dragHasConflict(id, date, startTime, newEndTime)) {
+    Modal.confirm(
+      {
+        title:       'Horario no disponible',
+        message:     `El horario <strong>${startTime}–${newEndTime}</strong> del ${Utils.formatDateLong(date)} ya está ocupado por otra reservación.`,
+        confirmText: 'Entendido',
+      },
+      () => {}
+    );
+    return;
+  }
+
+  if (reservation.isRecurring && reservation.recurringGroupId) {
+    Modal.choice(
+      {
+        title:       'Modificar duración',
+        message:     `<strong>${Utils.escapeHTML(reservation.responsible)}</strong><br>
+                      Esta reservación pertenece a una serie recurrente.`,
+        option1Text: 'Solo esta instancia',
+        option2Text: 'Toda la serie',
+      },
+      () => _showResizeConfirmOverlay(id, reservation, newEndTime, dropX, dropY, false),
+      () => _showResizeConfirmOverlay(id, reservation, newEndTime, dropX, dropY, true),
+    );
+  } else {
+    _showResizeConfirmOverlay(id, reservation, newEndTime, dropX, dropY, false);
+  }
+}
+
+function _showResizeConfirmOverlay(id, reservation, newEndTime, dropX, dropY, resizeSeries) {
+  document.getElementById('drag-confirm-overlay')?.remove();
+
+  const seriesBadge = resizeSeries
+    ? `<span class="badge badge-warning" style="font-size:10px;display:inline-block;margin-top:4px;">Toda la serie</span>`
+    : '';
+
+  const overlay = document.createElement('div');
+  overlay.id        = 'drag-confirm-overlay';
+  overlay.className = 'drag-confirm-overlay';
+  overlay.setAttribute('role',       'dialog');
+  overlay.setAttribute('aria-label', 'Confirmar cambio de duración');
+
+  overlay.innerHTML = `
+    <div class="drag-overlay__header">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+      </svg>
+      ¿Confirmar nueva duración?
+    </div>
+    <div class="drag-overlay__body">
+      <strong>${Utils.escapeHTML(reservation.responsible)}</strong><br>
+      ${Utils.formatDateLong(reservation.date)} · ${reservation.startTime}–${newEndTime}
+      ${seriesBadge}
+    </div>
+    <div class="drag-overlay__actions">
+      <button class="btn btn-ghost btn-sm"   id="drag-overlay-cancel">Cancelar</button>
+      <button class="btn btn-primary btn-sm" id="drag-overlay-ok">Confirmar</button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  const OW = 250, OH = 130;
+  let left = dropX + 12;
+  let top  = dropY - 40;
+  if (left + OW > window.innerWidth  - 8) left = dropX - OW - 12;
+  if (top  < 8)                           top  = 8;
+  if (top  + OH > window.innerHeight - 8) top  = window.innerHeight - OH - 8;
+  overlay.style.left = `${Math.max(8, left)}px`;
+  overlay.style.top  = `${Math.max(8, top)}px`;
+
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+
+  document.getElementById('drag-overlay-cancel').addEventListener('click', close);
+  document.getElementById('drag-overlay-ok').addEventListener('click', async () => {
+    close();
+    await _executeResize(id, reservation, newEndTime, resizeSeries);
+  });
+
+  setTimeout(() => {
+    const onOutside = (e) => {
+      if (!overlay.contains(e.target)) {
+        close();
+        document.removeEventListener('click', onOutside);
+      }
+    };
+    document.addEventListener('click', onOutside);
+  }, 50);
+}
+
+async function _executeResize(id, reservation, newEndTime, resizeSeries) {
+  const { date, startTime } = reservation;
+  try {
+    if (resizeSeries) {
+      const group = Store.getState().reservations.filter(r =>
+        r.recurringGroupId === reservation.recurringGroupId && r.status === 'active'
+      );
+      await Promise.all(group.map(r =>
+        API.updateReservation(r.id, {
+          start_time: `${r.date}T${r.startTime}:00`,
+          end_time:   `${r.date}T${newEndTime}:00`,
+        })
+      ));
+      Toast.show(`Serie actualizada: ${group.length} instancia${group.length !== 1 ? 's' : ''}.`, 'success');
+    } else {
+      await API.updateReservation(id, {
+        start_time: `${date}T${startTime}:00`,
+        end_time:   `${date}T${newEndTime}:00`,
+      });
+      Toast.show('Duración actualizada.', 'success');
+    }
+
+    const reservations = await API.getReservations();
+    Store.setState({ reservations });
+    _renderStats();
+    _renderUpcoming();
+    if (Calendar.getCurrentView() === 'week') {
+      Calendar.renderWeek(new Date(`${date}T00:00:00`), Calendar.getHighlightDate());
+    } else {
+      Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    }
+  } catch (err) {
+    const msg = err?.status === 409
+      ? 'El horario ya está ocupado por otra reservación.'
+      : 'No se pudo actualizar la reservación.';
+    Toast.show(msg, 'error');
+  }
 }
 
