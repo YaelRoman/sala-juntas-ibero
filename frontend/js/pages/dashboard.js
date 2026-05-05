@@ -1182,7 +1182,7 @@ function _showDragConfirmOverlay(id, reservation, target, dropX, dropY, moveSeri
 
   document.getElementById('drag-overlay-ok').addEventListener('click', async () => {
     close();
-    await _executeDragMove(id, reservation, target, moveSeries);
+    await _executeDragMove(id, reservation, target, moveSeries, dropX, dropY);
   });
 
   setTimeout(() => {
@@ -1196,7 +1196,7 @@ function _showDragConfirmOverlay(id, reservation, target, dropX, dropY, moveSeri
   }, 50);
 }
 
-async function _executeDragMove(id, reservation, target, moveSeries) {
+async function _executeDragMove(id, reservation, target, moveSeries, dropX, dropY) {
   const { date, startTime, endTime } = target;
 
   try {
@@ -1258,6 +1258,17 @@ async function _executeDragMove(id, reservation, target, moveSeries) {
       Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
     }
   } catch (err) {
+    if (err?.status === 403 && !moveSeries) {
+      const anchorRect = dropX != null ? { left: dropX, right: dropX, top: dropY } : null;
+      ModificationRequestModal.open({
+        reservation,
+        anchorRect,
+        initialDate:      date,
+        initialStartTime: startTime,
+        initialEndTime:   endTime,
+      });
+      return;
+    }
     const msg = err?.status === 409
       ? 'El horario ya está ocupado por otra reservación.'
       : 'No se pudo mover la reservación. Intenta de nuevo.';
@@ -1353,7 +1364,7 @@ function _showResizeConfirmOverlay(id, reservation, newEndTime, dropX, dropY, re
   document.getElementById('drag-overlay-cancel').addEventListener('click', close);
   document.getElementById('drag-overlay-ok').addEventListener('click', async () => {
     close();
-    await _executeResize(id, reservation, newEndTime, resizeSeries);
+    await _executeResize(id, reservation, newEndTime, resizeSeries, dropX, dropY);
   });
 
   setTimeout(() => {
@@ -1367,7 +1378,7 @@ function _showResizeConfirmOverlay(id, reservation, newEndTime, dropX, dropY, re
   }, 50);
 }
 
-async function _executeResize(id, reservation, newEndTime, resizeSeries) {
+async function _executeResize(id, reservation, newEndTime, resizeSeries, dropX, dropY) {
   const { date, startTime } = reservation;
   try {
     if (resizeSeries) {
@@ -1399,6 +1410,17 @@ async function _executeResize(id, reservation, newEndTime, resizeSeries) {
       Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
     }
   } catch (err) {
+    if (err?.status === 403 && !resizeSeries) {
+      const anchorRect = dropX != null ? { left: dropX, right: dropX, top: dropY } : null;
+      ModificationRequestModal.open({
+        reservation,
+        anchorRect,
+        initialDate:      date,
+        initialStartTime: startTime,
+        initialEndTime:   newEndTime,
+      });
+      return;
+    }
     const msg = err?.status === 409
       ? 'El horario ya está ocupado por otra reservación.'
       : 'No se pudo actualizar la reservación.';

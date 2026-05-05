@@ -9,8 +9,11 @@ const ModificationRequestModal = (() => {
   const POPUP_ID  = 'mod-req-popup';
   const POPUP_W   = 340;
 
-  let _reservation = null;
-  let _onSent      = null;
+  let _reservation      = null;
+  let _onSent           = null;
+  let _initialDate      = null;
+  let _initialStartTime = null;
+  let _initialEndTime   = null;
 
   /* ── Time slot helpers ── */
   const _timeSlots = () => {
@@ -34,6 +37,11 @@ const ModificationRequestModal = (() => {
     const dateISO  = r.date   ?? r.start_time?.slice(0, 10);
     const startVal = r.startTime ?? r.start_time?.slice(11, 16);
     const endVal   = r.endTime   ?? r.end_time?.slice(11, 16);
+
+    // Pre-fill new-time fields with provided target (e.g. from drag-drop), else default to current time
+    const newDateISO  = _initialDate      ?? dateISO;
+    const newStartVal = _initialStartTime ?? startVal;
+    const newEndVal   = _initialEndTime   ?? endVal;
 
     const el = document.createElement('div');
     el.id        = POPUP_ID;
@@ -80,7 +88,7 @@ const ModificationRequestModal = (() => {
           <label class="form-label" for="mod-req-date"
                  style="font-size:var(--font-size-xs);margin-bottom:var(--space-1);">Nueva fecha</label>
           <input type="date" id="mod-req-date" class="form-input"
-                 value="${dateISO}" min="${Utils.today()}" />
+                 value="${newDateISO}" min="${Utils.today()}" />
         </div>
 
         <!-- New time -->
@@ -89,11 +97,11 @@ const ModificationRequestModal = (() => {
                  style="font-size:var(--font-size-xs);margin-bottom:var(--space-1);">Nuevo horario</label>
           <div style="display:flex;align-items:center;gap:var(--space-2);">
             <select class="form-select" id="mod-req-start" aria-label="Hora inicio" style="flex:1;">
-              ${_timeOptions(startVal)}
+              ${_timeOptions(newStartVal)}
             </select>
             <span style="color:var(--color-secondary-light);font-size:var(--font-size-xs);">→</span>
             <select class="form-select" id="mod-req-end" aria-label="Hora fin" style="flex:1;">
-              ${_timeOptions(endVal)}
+              ${_timeOptions(newEndVal)}
             </select>
           </div>
           <div id="mod-req-overlap" class="rmodal__iv-overlap hidden" role="status" aria-live="polite"></div>
@@ -227,10 +235,13 @@ const ModificationRequestModal = (() => {
   };
 
   /* ── Public API ── */
-  const open = ({ reservation, onSent, anchorRect } = {}) => {
+  const open = ({ reservation, onSent, anchorRect, initialDate, initialStartTime, initialEndTime } = {}) => {
     close(); // close any existing instance
-    _reservation = reservation;
-    _onSent      = onSent ?? null;
+    _reservation      = reservation;
+    _onSent           = onSent ?? null;
+    _initialDate      = initialDate      ?? null;
+    _initialStartTime = initialStartTime ?? null;
+    _initialEndTime   = initialEndTime   ?? null;
     _render(anchorRect ?? null);
   };
 
@@ -238,8 +249,11 @@ const ModificationRequestModal = (() => {
     const el = document.getElementById(POPUP_ID);
     el?._cleanupListeners?.();
     el?.remove();
-    _reservation = null;
-    _onSent      = null;
+    _reservation      = null;
+    _onSent           = null;
+    _initialDate      = null;
+    _initialStartTime = null;
+    _initialEndTime   = null;
   };
 
   return { open, close };
