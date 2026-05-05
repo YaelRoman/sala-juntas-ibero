@@ -499,11 +499,17 @@ const ReservationModal = (() => {
 
     statusEl.textContent = 'Analizando…';
     try {
-      const parsed = await AI.parse(text);
+      // Pass the first interval's date as a hint for conflict detection
+      const dateHint = _intervals[0]?.date ?? null;
+      const parsed = await AI.parse(text, dateHint);
       let filled = 0;
 
-      if (parsed.responsible) {
-        const sel   = _overlay.querySelector('#rmodal-responsible');
+      const sel = _overlay.querySelector('#rmodal-responsible');
+      if (parsed.responsible_id) {
+        // AI returned a confirmed match — set directly
+        if (sel) { sel.value = parsed.responsible_id; filled++; }
+      } else if (parsed.responsible) {
+        // Fall back to client-side substring match
         const match = _users.find(u =>
           u.name.toLowerCase().includes(parsed.responsible.toLowerCase())
         );
@@ -518,9 +524,13 @@ const ReservationModal = (() => {
         if (obsEl) { obsEl.value = parsed.observations; filled++; }
       }
 
-      statusEl.textContent = filled
-        ? `${filled} campo${filled !== 1 ? 's' : ''} rellenado${filled !== 1 ? 's' : ''}. Revisa antes de guardar.`
-        : 'No se pudo extraer información. Rellena manualmente.';
+      if (parsed.conflict && parsed.suggestedStartTime) {
+        statusEl.textContent = `Horario ocupado — se sugiere ${parsed.suggestedStartTime}–${parsed.suggestedEndTime}. ${filled} campo${filled !== 1 ? 's' : ''} rellenado${filled !== 1 ? 's' : ''}.`;
+      } else {
+        statusEl.textContent = filled
+          ? `${filled} campo${filled !== 1 ? 's' : ''} rellenado${filled !== 1 ? 's' : ''}. Revisa antes de guardar.`
+          : 'No se pudo extraer información. Rellena manualmente.';
+      }
     } catch (err) {
       console.error('AI parse error:', err);
       statusEl.textContent = 'Error al consultar la IA.';

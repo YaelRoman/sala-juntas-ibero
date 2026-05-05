@@ -1,0 +1,245 @@
+/* ============================================================
+   TUTORIAL.CSS — Overlay tutorial interactivo (spotlight + tooltip)
+   Plataforma Reservación Sala de Juntas · Ibero CDMX
+   ============================================================ */
+
+/* ── BLOCKER — evita clics accidentales fuera del tooltip ── */
+#tutorial-blocker {
+  position: fixed;
+  inset: 0;
+  z-index: 8998;
+  cursor: default;
+}
+
+/* ── SPOTLIGHT — box-shadow crea el efecto oscuro alrededor ── */
+#tutorial-spotlight {
+  position: fixed;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 9000;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.58);
+  outline: 2px solid rgba(255, 255, 255, 0.22);
+  outline-offset: 0;
+  transition:
+    top    0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    left   0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    width  0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#tutorial-spotlight.is-hidden {
+  outline: none;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.58);
+}
+
+/* ── TOOLTIP CARD ── */
+@keyframes _tut-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes _tut-popin {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+#tutorial-tooltip {
+  position: fixed;
+  z-index: 9001;
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28), 0 4px 16px rgba(0, 0, 0, 0.12);
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  animation: _tut-fadein 0.22s ease both;
+}
+
+#tutorial-tooltip.is-centered {
+  left: 50% !important;
+  top:  50% !important;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  animation: _tut-popin 0.25s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* ── HEADER ── */
+.tut__header {
+  background: var(--color-primary);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: #fff;
+}
+
+.tut__header-icon {
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tut__header-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
+  flex: 1;
+}
+
+/* ── BODY ── */
+.tut__body {
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--font-size-sm);
+  color: var(--color-secondary);
+  line-height: 1.65;
+}
+
+/* ── FOOTER ── */
+.tut__footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Progress dots */
+.tut__progress {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.tut__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  transition: background 0.2s, width 0.2s;
+}
+
+.tut__dot.is-active {
+  background: var(--color-primary);
+  width: 16px;
+}
+
+.tut__dot.is-done {
+  background: var(--color-primary-light);
+}
+
+/* Actions */
+.tut__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* Skip */
+.tut__skip {
+  font-size: var(--font-size-xs);
+  color: var(--color-secondary-light);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1);
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.tut__skip:hover {
+  opacity: 1;
+  color: var(--color-secondary);
+}
+
+/* ── HELP BUTTON (topbar) ── */
+.topbar__help-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-secondary-mid);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.topbar__help-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-secondary);
+  border-color: var(--color-secondary-light);
+}
+
+/* ── BODY CONTENT HELPERS ── */
+.tut__list {
+  margin: var(--space-2) 0 0 var(--space-4);
+  padding: 0;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tut__list li {
+  line-height: 1.55;
+}
+
+.tut__tip {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-hover);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-secondary-mid);
+  line-height: 1.55;
+}
+
+.tut__shortcuts {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tut__shortcuts > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.tut__shortcut-label {
+  color: var(--color-secondary-mid);
+}
+
+/* Keyboard key styling */
+.tut__body kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-secondary);
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 1px 0 var(--color-border);
+}

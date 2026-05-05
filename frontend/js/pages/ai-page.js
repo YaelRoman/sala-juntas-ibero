@@ -120,10 +120,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     _hideProposal();
 
     try {
-      const result = await AI.parse(text);
+      // Pass the currently-selected suggestion date as a hint so the backend
+      // can load that day's reservations for conflict detection.
+      const dateHint = suggestDate?.value || null;
+      const result = await AI.parse(text, dateHint);
       _showProposal(result);
 
-      // Auto-populate suggestions date
+      // Auto-populate suggestions date from result
       if (result.date && suggestDate) {
         suggestDate.value = result.date;
         _renderSuggestions(result.date);
@@ -146,12 +149,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (propArea) propArea.value = result.area        ?? '';
     if (propObs)  propObs.value  = result.observations ?? '';
 
-    // Try to match the AI's suggested name to an existing user
-    if (result.responsible) _tryMatchResponsible(result.responsible);
+    // Use the AI-matched user ID directly when available; otherwise fall back to name matching
+    if (result.responsible_id) {
+      if (propRespon) propRespon.value = result.responsible_id;
+      newUserPanel?.classList.add('hidden');
+      _validateProposal();
+    } else if (result.responsible) {
+      _tryMatchResponsible(result.responsible);
+    }
 
-    // Populate time selects
-    _setSelectValue(propStart, result.startTime ?? '');
-    _setSelectValue(propEnd,   result.endTime   ?? '');
+    // If the AI detected a conflict, apply the suggested alternative times instead
+    const useStart = (result.conflict && result.suggestedStartTime) ? result.suggestedStartTime : result.startTime;
+    const useEnd   = (result.conflict && result.suggestedEndTime)   ? result.suggestedEndTime   : result.endTime;
+    _setSelectValue(propStart, useStart ?? '');
+    _setSelectValue(propEnd,   useEnd   ?? '');
+
+    if (result.conflict && result.suggestedStartTime) {
+      Toast.show(
+        `El horario solicitado ya está ocupado. Se sugiere ${result.suggestedStartTime}–${result.suggestedEndTime}.`,
+        'warning'
+      );
+    }
 
     // Source badge
     if (sourceBadge) {
@@ -174,10 +192,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     _checkOverlap();
 
     // Focus first incomplete field
-    if (!result.date)           propDate?.focus();
-    else if (!result.startTime) propStart?.focus();
+    if (!result.date)            propDate?.focus();
+    else if (!useStart)          propStart?.focus();
     else if (!propRespon?.value) propRespon?.focus();
-    else                        btnSave?.focus();
+    else                         btnSave?.focus();
   }
 
   function _hideProposal() {

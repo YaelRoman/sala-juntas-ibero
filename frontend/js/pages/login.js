@@ -145,26 +145,6 @@ function _initPasswordToggle() {
   });
 }
 
-/* ── AUTOCOMPLETAR CREDENCIALES DE DEMO ── */
-function fillDemo(role) {
-  const emailEl = document.getElementById('login-email');
-  const pwdEl   = document.getElementById('login-password');
-  const errEl   = document.getElementById('login-error');
-
-  const creds = {
-    secretaria: { email: 'secretaria@ibero.mx', password: 'Admin123!' },
-    academico:  { email: 'academico@ibero.mx',  password: 'Acad456!' }
-  };
-
-  if (creds[role] && emailEl && pwdEl) {
-    emailEl.value = creds[role].email;
-    pwdEl.value   = creds[role].password;
-    emailEl.classList.remove('is-error');
-    pwdEl.classList.remove('is-error');
-    _clearError(errEl);
-  }
-}
-
 /* ── HELPERS ── */
 function _showError(el, msg) {
   if (!el) return;

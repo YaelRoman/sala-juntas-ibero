@@ -47,7 +47,11 @@ const AI = (() => {
    *
    * Tries real API first if apiKey is configured; falls back to local parser.
    */
-  async function parse(text) {
+  /**
+   * @param {string} text
+   * @param {string} [date] — YYYY-MM-DD hint so the backend can load that day's reservations
+   */
+  async function parse(text, date) {
     if (!text?.trim()) {
       return _emptyResult(text ?? '');
     }
@@ -55,7 +59,7 @@ const AI = (() => {
     const enabled = await _checkEnabled();
     if (enabled) {
       try {
-        const result = await _parseViaAPI(text);
+        const result = await _parseViaAPI(text, date);
         if (result) return result;
       } catch (err) {
         console.warn('[AI] backend parse failed, falling back to local parser:', err.message);
@@ -70,20 +74,24 @@ const AI = (() => {
 
   /* ── API CALL — proxied through backend ──────────────── */
 
-  async function _parseViaAPI(text) {
-    const parsed = await API.aiParse(text, Utils.today());
+  async function _parseViaAPI(text, date) {
+    const parsed = await API.aiParse(text, Utils.today(), date ?? null);
     if (!parsed) throw new Error('Empty response from backend');
 
     return {
-      date:         _validateDate(parsed.date)      ?? null,
-      startTime:    _validateTime(parsed.startTime) ?? null,
-      endTime:      _validateTime(parsed.endTime)   ?? null,
-      responsible:  String(parsed.responsible ?? '').trim(),
-      area:         String(parsed.area ?? '').trim(),
-      observations: String(parsed.observations ?? '').trim(),
-      confidence:   0.9,
-      source:       'api',
-      rawText:      text,
+      date:               _validateDate(parsed.date)              ?? null,
+      startTime:          _validateTime(parsed.startTime)         ?? null,
+      endTime:            _validateTime(parsed.endTime)           ?? null,
+      responsible:        String(parsed.responsible  ?? '').trim(),
+      responsible_id:     parsed.responsible_id                   ?? null,
+      area:               String(parsed.area         ?? '').trim(),
+      observations:       String(parsed.observations ?? '').trim(),
+      conflict:           Boolean(parsed.conflict),
+      suggestedStartTime: _validateTime(parsed.suggestedStartTime) ?? null,
+      suggestedEndTime:   _validateTime(parsed.suggestedEndTime)   ?? null,
+      confidence:         0.9,
+      source:             'api',
+      rawText:            text,
     };
   }
 

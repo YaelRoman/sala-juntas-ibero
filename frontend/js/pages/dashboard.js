@@ -51,6 +51,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 9. Event listeners propios de la página
   _initEventListeners();
+
+  // 10. Tutorial
+  document.getElementById('btn-tutorial')?.addEventListener('click', Tutorial.start);
+  Tutorial.autoStart();
 });
 
 /* ── ESTADÍSTICAS ── */

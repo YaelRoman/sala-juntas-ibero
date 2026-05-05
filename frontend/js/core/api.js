@@ -186,8 +186,8 @@ const API = (() => {
   const aiStatus = () =>
     _request('GET', '/ai/status');
 
-  const aiParse = (text, today) =>
-    _request('POST', '/ai/parse', { text, today });
+  const aiParse = (text, today, date) =>
+    _request('POST', '/ai/parse', { text, today, date: date ?? null });
 
   // Modification requests
   const submitModificationRequest = (data) =>

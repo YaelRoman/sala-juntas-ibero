@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/components/calendar.css" />
   <link rel="stylesheet" href="css/components/forms.css" />
   <link rel="stylesheet" href="css/components/modals.css" />
+  <link rel="stylesheet" href="css/components/tutorial.css" />
   <link rel="stylesheet" href="css/pages/dashboard.css" />
   <link rel="stylesheet" href="css/responsive.css" />
 </head>
@@ -53,6 +54,16 @@
       </nav>
 
       <div class="topbar__actions">
+        <button class="topbar__help-btn" id="btn-tutorial"
+                aria-label="Tutorial interactivo" title="Ver tutorial">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </button>
         <span id="topbar-role-badge" class="badge badge-primary topbar__badge-role">Secretaria</span>
       </div>
     </header>
@@ -262,6 +273,7 @@
 <script src="js/components/calendar-week.js"></script>
 <script src="js/components/mini-calendar.js"></script>
 <script src="js/components/modal.js"></script>
+<script src="js/components/tutorial.js"></script>
 <script src="js/components/reservation-modal.js"></script>
 <script src="js/components/modification-request-modal.js"></script>
 <script src="js/modules/calendar.js"></script>
