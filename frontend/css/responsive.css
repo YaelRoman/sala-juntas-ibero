@@ -41,6 +41,21 @@ html, body {
 }
 
 /* ════════════════════════════════
+   SINGLE-COLUMN LAYOUT (≤ 1199px)
+   Dashboard grid collapses to one column here; switch the shell to
+   natural-height / page-scroll so the calendar can expand fully.
+   ════════════════════════════════ */
+@media (max-width: 1199px) {
+  .main-content {
+    height: auto;
+    overflow: visible;
+  }
+  .page-content {
+    overflow-y: visible;
+  }
+}
+
+/* ════════════════════════════════
    MOBILE / TABLET (≤ 768px)
    ════════════════════════════════ */
 @media (max-width: 768px) {

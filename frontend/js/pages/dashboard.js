@@ -229,6 +229,17 @@ function _onReservationClick(id, event) {
         </svg>
         <div class="cal-popup__value">${Utils.escapeHTML(r.observations)}</div>
       </div>` : ''}
+      ${r.creatorName ? `
+      <div class="cal-popup__row">
+        <svg class="cal-popup__icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <div>
+          <div class="cal-popup__label" style="font-size:var(--font-size-xs);color:var(--color-secondary-light);">Registrada por</div>
+          <div class="cal-popup__value">${Utils.escapeHTML(r.creatorName)}</div>
+        </div>
+      </div>` : ''}
       <div class="cal-popup__row">${cancelledBadge}</div>
     </div>
     ${actions}
@@ -1111,12 +1122,14 @@ function _onBlockDrop(id, reservation, target, dropX, dropY) {
 }
 
 function _dragHasConflict(excludeId, date, startTime, endTime) {
+  // excludeId may be a single string or a Set of strings
+  const excluded = excludeId instanceof Set ? excludeId : new Set([excludeId]);
   const [sh, sm] = startTime.split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);
   const newStart = sh * 60 + sm;
   const newEnd   = eh * 60 + em;
   return Store.getState().reservations.some(r => {
-    if (r.id === excludeId || r.status !== 'active' || r.date !== date) return false;
+    if (excluded.has(r.id) || r.status !== 'active' || r.date !== date) return false;
     const [rsh, rsm] = r.startTime.split(':').map(Number);
     const [reh, rem] = r.endTime.split(':').map(Number);
     return (rsh * 60 + rsm) < newEnd && (reh * 60 + rem) > newStart;
@@ -1230,6 +1243,26 @@ async function _executeDragMove(id, reservation, target, moveSeries, dropX, drop
         }
       }
 
+      // Pre-check ALL target slots before sending any request.
+      // Excludes the whole group so within-group time shifts don't self-conflict.
+      const groupIds = new Set(group.map(g => g.id));
+      const conflicted = group.filter(r => {
+        const d = new Date(`${r.date}T00:00:00`);
+        d.setDate(d.getDate() + dayDelta);
+        return _dragHasConflict(groupIds, Utils.dateToISO(d), startTime, endTime);
+      });
+      if (conflicted.length) {
+        Modal.confirm(
+          {
+            title:       'Horario no disponible',
+            message:     `${conflicted.length} instancia${conflicted.length !== 1 ? 's' : ''} de la serie tiene${conflicted.length !== 1 ? 'n' : ''} conflicto con otras reservaciones en el horario de destino.`,
+            confirmText: 'Entendido',
+          },
+          () => {}
+        );
+        return;
+      }
+
       await Promise.all(group.map(r => {
         const d = new Date(`${r.date}T00:00:00`);
         d.setDate(d.getDate() + dayDelta);
@@ -1273,6 +1306,18 @@ async function _executeDragMove(id, reservation, target, moveSeries, dropX, drop
       ? 'El horario ya está ocupado por otra reservación.'
       : 'No se pudo mover la reservación. Intenta de nuevo.';
     Toast.show(msg, 'error');
+    // Resync frontend with actual backend state in case of partial series update
+    try {
+      const reservations = await API.getReservations();
+      Store.setState({ reservations });
+      _renderStats();
+      _renderUpcoming();
+      if (Calendar.getCurrentView() === 'week') {
+        Calendar.renderWeek(Calendar.getCurrentWeekStart(), Calendar.getHighlightDate());
+      } else {
+        Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+      }
+    } catch { /* ignore secondary error */ }
   }
 }
 

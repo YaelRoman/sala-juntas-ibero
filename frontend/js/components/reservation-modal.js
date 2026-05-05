@@ -395,14 +395,35 @@ const ReservationModal = (() => {
   const _wireEvents = () => {
     if (!_overlay) return;
 
+    const _newUserPanelOpen = () => {
+      const p = _overlay?.querySelector('#rmodal-new-user-panel');
+      return p && !p.classList.contains('hidden');
+    };
+    const _cancelNewUserPanel = () => {
+      const respSel = _overlay?.querySelector('#rmodal-responsible');
+      if (respSel) respSel.value = '';
+      _overlay?.querySelector('#rmodal-new-user-panel')?.classList.add('hidden');
+    };
+
     _overlay.querySelectorAll('[data-rmodal-close]').forEach(b =>
-      b.addEventListener('click', close)
+      b.addEventListener('click', () => {
+        if (_newUserPanelOpen()) {
+          Toast?.show('Cancela o completa la creación del usuario antes de cerrar.', 'warning');
+          return;
+        }
+        close();
+      })
     );
     _overlay.addEventListener('click', (e) => {
-      if (e.target === _overlay) close();
+      if (e.target === _overlay && !_newUserPanelOpen()) close();
     });
 
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        if (_newUserPanelOpen()) { _cancelNewUserPanel(); return; }
+        close();
+      }
+    };
     document.addEventListener('keydown', onKey);
     _overlay._cleanup = () => document.removeEventListener('keydown', onKey);
 
@@ -448,15 +469,6 @@ const ReservationModal = (() => {
       const isNew = respSel.value === '__new__';
       newUserPanel?.classList.toggle('hidden', !isNew);
       if (isNew) _overlay.querySelector('#rmodal-nu-name')?.focus();
-    });
-
-    // Clicking outside the new-user panel (but inside the modal) collapses it
-    _overlay.querySelector('.rmodal__panel')?.addEventListener('click', (e) => {
-      if (newUserPanel && !newUserPanel.classList.contains('hidden') &&
-          !newUserPanel.contains(e.target) && !respSel?.contains(e.target)) {
-        respSel.value = '';
-        newUserPanel.classList.add('hidden');
-      }
     });
 
     _overlay.querySelector('#rmodal-nu-cancel')?.addEventListener('click', () => {

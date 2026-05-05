@@ -43,35 +43,39 @@ router.get('/', async (req, res) => {
   const { status, dateFrom, dateTo, responsible } = req.query;
 
   try {
-    let query = 'SELECT * FROM reservations WHERE 1=1';
+    let query = `
+      SELECT r.*, u.name AS creator_name
+      FROM reservations r
+      LEFT JOIN users u ON u.id = r.created_by
+      WHERE 1=1`;
     const params = [];
     let paramCount = 1;
 
     if (status) {
-      query += ` AND status = $${paramCount}`;
+      query += ` AND r.status = $${paramCount}`;
       params.push(status);
       paramCount++;
     }
 
     if (dateFrom) {
-      query += ` AND start_time >= $${paramCount}`;
+      query += ` AND r.start_time >= $${paramCount}`;
       params.push(dateFrom);
       paramCount++;
     }
 
     if (dateTo) {
-      query += ` AND end_time <= $${paramCount}`;
+      query += ` AND r.end_time <= $${paramCount}`;
       params.push(dateTo);
       paramCount++;
     }
 
     if (responsible) {
-      query += ` AND responsible_name ILIKE $${paramCount}`;
+      query += ` AND r.responsible_name ILIKE $${paramCount}`;
       params.push(`%${responsible}%`);
       paramCount++;
     }
 
-    query += ' ORDER BY start_time ASC';
+    query += ' ORDER BY r.start_time ASC';
 
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -100,9 +104,11 @@ router.get('/week', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT * FROM reservations
-       WHERE start_time >= $1 AND start_time < $2
-       ORDER BY start_time ASC`,
+      `SELECT r.*, u.name AS creator_name
+       FROM reservations r
+       LEFT JOIN users u ON u.id = r.created_by
+       WHERE r.start_time >= $1 AND r.start_time < $2
+       ORDER BY r.start_time ASC`,
       [weekStart.toISOString(), weekEnd.toISOString()]
     );
     res.json({

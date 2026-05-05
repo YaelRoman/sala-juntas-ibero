@@ -79,6 +79,7 @@ const API = (() => {
       startTime:        start.time,
       endTime:          end.time,
       responsible:      r.responsible_name,
+      creatorName:      r.creator_name ?? null,
       isRecurring:      r.is_recurring,
       recurringGroupId: r.recurring_group,
     };
