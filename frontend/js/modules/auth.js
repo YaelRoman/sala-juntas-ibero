@@ -77,6 +77,20 @@ const Auth = (() => {
     return user;
   };
 
+  /* ── PROTECCIÓN POR SUPER-ADMIN ── */
+  const requireSuperAdmin = () => {
+    const user = checkSession();
+    if (!user) {
+      window.location.href = 'index.html';
+      return null;
+    }
+    if (!user.isAdmin) {
+      window.location.href = user.role === 'secretaria' ? 'dashboard.html' : 'calendar.html';
+      return null;
+    }
+    return user;
+  };
+
   /* ── PROTECCIÓN GENERAL (cualquier sesión válida) ── */
   const requireAuth = () => {
     const user = checkSession();
@@ -124,6 +138,7 @@ const Auth = (() => {
     checkSession,
     requireRole,
     requireAuth,
+    requireSuperAdmin,
     requestPasswordReset,
     startInactivityWatcher
   };

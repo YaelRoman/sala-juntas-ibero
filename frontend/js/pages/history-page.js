@@ -197,15 +197,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
-    // Wire individual edit
+    // Wire individual edit / request change
     tableBody.querySelectorAll('.row-edit-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const r = Store.getState().reservations.find(res => res.id === parseInt(btn.dataset.id, 10));
+        const r = Store.getState().reservations.find(res => res.id === btn.dataset.id);
         if (!r) return;
-        ReservationModal.open({
-          editReservation: r,
-          onSaved: () => _renderTable(),
-        });
+        const isOwner      = r.created_by === user?.id;
+        const isSuperAdmin = !!user?.isAdmin;
+        if (isSuperAdmin || isOwner) {
+          ReservationModal.open({ editReservation: r, onSaved: () => _renderTable() });
+        } else {
+          const anchorRect = btn.getBoundingClientRect();
+          ModificationRequestModal.open({ reservation: r, anchorRect });
+        }
       });
     });
 
@@ -240,17 +244,29 @@ document.addEventListener('DOMContentLoaded', async () => {
          </td>`
       : `<td class="col-check"></td>`;
 
+    const isOwner      = isSecretary && r.created_by === user?.id;
+    const isSuperAdmin = !!user?.isAdmin;
+    const canModify    = isSuperAdmin || isOwner;
+
+    const editLabel = canModify ? 'Editar' : 'Solicitar cambio';
+    const editIcon  = canModify
+      ? `<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+         <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>`
+      : `<circle cx="12" cy="12" r="10"/>
+         <line x1="12" y1="8" x2="12" y2="12"/>
+         <line x1="12" y1="16" x2="12.01" y2="16"/>`;
+
     const actions = isSecretary && isActive
       ? `<div class="row-actions">
            <button class="btn btn-secondary btn-sm row-edit-btn" data-id="${r.id}"
-                   aria-label="Editar reservación de ${Utils.escapeHTML(r.responsible)}">
+                   aria-label="${editLabel} reservación de ${Utils.escapeHTML(r.responsible)}">
              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-               <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+               ${editIcon}
              </svg>
            </button>
+           ${canModify ? `
            <button class="btn btn-danger btn-sm row-cancel-btn" data-id="${r.id}"
                    aria-label="Cancelar reservación de ${Utils.escapeHTML(r.responsible)}">
              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
@@ -259,7 +275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                <line x1="18" y1="6" x2="6" y2="18"/>
                <line x1="6"  y1="6" x2="18" y2="18"/>
              </svg>
-           </button>
+           </button>` : ''}
          </div>`
       : `<span style="color:var(--color-secondary-light);font-size:var(--font-size-xs);">—</span>`;
 

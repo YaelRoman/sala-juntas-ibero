@@ -188,6 +188,19 @@ const API = (() => {
   const aiParse = (text, today) =>
     _request('POST', '/ai/parse', { text, today });
 
+  // Modification requests
+  const submitModificationRequest = (data) =>
+    _request('POST', '/modification-requests', data);
+
+  const getModificationRequests = (status = 'pending') =>
+    _request('GET', `/modification-requests?status=${status}`);
+
+  const approveModificationRequest = (id) =>
+    _request('PATCH', `/modification-requests/${id}/approve`);
+
+  const rejectModificationRequest = (id, reason) =>
+    _request('PATCH', `/modification-requests/${id}/reject`, { reason });
+
   return {
     login,
     logout,
@@ -210,6 +223,10 @@ const API = (() => {
     getDashboardStats,
     createRecurringGroup,
     aiStatus,
-    aiParse
+    aiParse,
+    submitModificationRequest,
+    getModificationRequests,
+    approveModificationRequest,
+    rejectModificationRequest,
   };
 })();

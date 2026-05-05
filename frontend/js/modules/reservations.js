@@ -49,6 +49,9 @@ const Reservations = (() => {
       if (err.status === 409) {
         return { success: false, error: 'overlap', conflictWith: err.data.conflictWith };
       }
+      if (err.status === 403) {
+        return { success: false, error: 'forbidden', message: err.data?.error || 'No tienes permiso para modificar esta reservación' };
+      }
       console.error('Update reservation error:', err);
       return { success: false, error: err.message || 'Error updating reservation' };
     }

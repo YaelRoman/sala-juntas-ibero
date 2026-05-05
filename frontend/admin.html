@@ -63,6 +63,15 @@
           </svg>
           Usuarios
         </button>
+        <button class="admin-tab" id="tab-requests" role="tab"
+                aria-controls="section-requests" aria-selected="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+            <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+          </svg>
+          Solicitudes
+        </button>
         <button class="admin-tab" id="tab-calendar" role="tab"
                 aria-controls="section-calendar" aria-selected="false">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -118,6 +127,28 @@
           <!-- JS renders here -->
         </div>
 
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           SECCIÓN: SOLICITUDES DE CAMBIO (super-admin)
+      ══════════════════════════════════════════ -->
+      <div id="section-requests" role="tabpanel" aria-labelledby="tab-requests" class="hidden">
+        <div class="admin-panel" style="max-width:720px;">
+          <div class="admin-panel__header">
+            <svg class="admin-panel__icon" width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+            </svg>
+            <h2 class="admin-panel__title">Solicitudes pendientes de cambio de horario</h2>
+          </div>
+          <div class="admin-panel__body">
+            <div id="requests-list" aria-live="polite">
+              <div class="notif-empty">Cargando…</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ══════════════════════════════════════════

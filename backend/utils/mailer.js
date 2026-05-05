@@ -167,11 +167,60 @@ function accountDeactivatedEmail(user) {
   };
 }
 
+function reservationAdminModifiedEmail(reservation, adminName, changes = []) {
+  const changesHtml = changes.length
+    ? `<p style="font-size:13px;color:#555;">Campos modificados: <strong>${_esc(changes.join(', '))}</strong>.</p>`
+    : '';
+  return {
+    subject: `Tu reservación fue modificada por administración — Sala de Juntas Ibero`,
+    html: _layout('#e65100', 'Reservación modificada por administración',
+      `<p>El administrador <strong>${_esc(adminName)}</strong> modificó una reservación que registraste:</p>
+       ${_reservationTable(reservation, true)}
+       ${changesHtml}
+       <p style="font-size:13px;color:#555;">Si tienes dudas, contacta a la administración del sistema.</p>`),
+  };
+}
+
+function reservationAdminCancelledEmail(reservation, adminName) {
+  return {
+    subject: `Tu reservación fue cancelada por administración — Sala de Juntas Ibero`,
+    html: _layout('#dc3545', 'Reservación cancelada por administración',
+      `<p>El administrador <strong>${_esc(adminName)}</strong> canceló una reservación que registraste:</p>
+       ${_reservationTable(reservation, false)}
+       <p style="font-size:13px;color:#555;">Si tienes dudas, contacta a la administración del sistema.</p>`),
+  };
+}
+
+function modificationRequestApprovedEmail(requesterName, reservation) {
+  return {
+    subject: `Solicitud de cambio aprobada — Sala de Juntas Ibero`,
+    html: _layout('#2e7d32', 'Solicitud de cambio aprobada',
+      `<p>Hola <strong>${_esc(requesterName)}</strong>,</p>
+       <p>Tu solicitud de cambio de horario fue <strong>aprobada</strong>. Los datos actualizados de la reservación son:</p>
+       ${_reservationTable(reservation, true)}`),
+  };
+}
+
+function modificationRequestRejectedEmail(requesterName, reservation, reason) {
+  return {
+    subject: `Solicitud de cambio rechazada — Sala de Juntas Ibero`,
+    html: _layout('#c62828', 'Solicitud de cambio rechazada',
+      `<p>Hola <strong>${_esc(requesterName)}</strong>,</p>
+       <p>Tu solicitud de cambio de horario para la siguiente reservación fue <strong>rechazada</strong>:</p>
+       ${_reservationTable(reservation, false)}
+       ${reason ? `<p style="font-size:13px;color:#555;">Motivo: ${_esc(reason)}</p>` : ''}`),
+  };
+}
+
 module.exports = {
   sendEmail,
   reservationCreatedEmail,
   reservationUpdatedEmail,
   reservationCancelledEmail,
+  reservationAdminModifiedEmail,
+  reservationAdminCancelledEmail,
+  modificationRequestApprovedEmail,
+  modificationRequestRejectedEmail,
   passwordResetEmail,
   welcomeEmail,
   passwordChangedEmail,

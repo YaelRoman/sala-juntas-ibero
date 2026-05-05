@@ -7,6 +7,8 @@ const {
   reservationCreatedEmail,
   reservationUpdatedEmail,
   reservationCancelledEmail,
+  reservationAdminModifiedEmail,
+  reservationAdminCancelledEmail,
 } = require('../utils/mailer');
 
 const router = express.Router();
@@ -330,7 +332,7 @@ router.post('/', requireRole('secretaria'), async (req, res) => {
   }
 });
 
-// PUT /api/reservations/:id - Update reservation (secretaria only)
+// PUT /api/reservations/:id - Update reservation (secretaria only, own reservation; super-admin for any)
 router.put('/:id', requireRole('secretaria'), async (req, res) => {
   const { id } = req.params;
   const { responsible_id, area, start_time, end_time, observations } = req.body;
@@ -340,6 +342,12 @@ router.put('/:id', requireRole('secretaria'), async (req, res) => {
     const existing = await pool.query('SELECT * FROM reservations WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    // Ownership: only super-admin may edit another secretary's reservation
+    const isOwner = existing.rows[0].created_by === req.user.id;
+    if (!req.user.isAdmin && !isOwner) {
+      return res.status(403).json({ error: 'No puedes modificar una reservación de otra secretaria' });
     }
 
     // Look up responsible user if provided
@@ -416,6 +424,15 @@ router.put('/:id', requireRole('secretaria'), async (req, res) => {
       }
     }
 
+    // Notify creating secretary when a super-admin modifies their reservation
+    if (req.user.isAdmin && !isOwner && before.created_by) {
+      const creatorQ = await pool.query('SELECT email FROM users WHERE id = $1', [before.created_by]);
+      if (creatorQ.rows[0]?.email) {
+        const { subject, html } = reservationAdminModifiedEmail(after, req.user.name, changes);
+        sendEmail(creatorQ.rows[0].email, subject, html);
+      }
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating reservation:', err);
@@ -424,20 +441,27 @@ router.put('/:id', requireRole('secretaria'), async (req, res) => {
 });
 
 // DELETE /api/reservations/:id - Cancel single reservation (soft delete)
+// Own reservations: any secretaria; other secretaries' reservations: super-admin only
 router.delete('/:id', requireRole('secretaria'), async (req, res) => {
   const { id } = req.params;
 
   try {
+    const existing = await pool.query('SELECT * FROM reservations WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    const isOwner = existing.rows[0].created_by === req.user.id;
+    if (!req.user.isAdmin && !isOwner) {
+      return res.status(403).json({ error: 'No puedes cancelar una reservación de otra secretaria' });
+    }
+
     const result = await pool.query(
       `UPDATE reservations SET status = 'cancelled', updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
       [id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Reservation not found' });
-    }
 
     // Log to audit
     await pool.query(
@@ -446,12 +470,23 @@ router.delete('/:id', requireRole('secretaria'), async (req, res) => {
       [req.user.id, 'cancel_reservation', 'reservations', id]
     );
 
+    const cancelled = result.rows[0];
+
     // Send cancellation email to responsible person (non-blocking)
-    if (result.rows[0].responsible_id) {
-      const resp = await pool.query('SELECT email FROM users WHERE id = $1', [result.rows[0].responsible_id]);
+    if (cancelled.responsible_id) {
+      const resp = await pool.query('SELECT email FROM users WHERE id = $1', [cancelled.responsible_id]);
       if (resp.rows.length > 0) {
-        const { subject, html } = reservationCancelledEmail(result.rows[0]);
+        const { subject, html } = reservationCancelledEmail(cancelled);
         sendEmail(resp.rows[0].email, subject, html);
+      }
+    }
+
+    // Notify creating secretary when super-admin cancels their reservation
+    if (req.user.isAdmin && !isOwner && cancelled.created_by) {
+      const creatorQ = await pool.query('SELECT email FROM users WHERE id = $1', [cancelled.created_by]);
+      if (creatorQ.rows[0]?.email) {
+        const { subject, html } = reservationAdminCancelledEmail(cancelled, req.user.name);
+        sendEmail(creatorQ.rows[0].email, subject, html);
       }
     }
 
@@ -463,6 +498,7 @@ router.delete('/:id', requireRole('secretaria'), async (req, res) => {
 });
 
 // DELETE /api/reservations/bulk - Cancel multiple reservations
+// Secretaries may only cancel their own; super-admin may cancel any
 router.delete('/bulk', requireRole('secretaria'), async (req, res) => {
   const { ids } = req.body;
 
@@ -471,6 +507,17 @@ router.delete('/bulk', requireRole('secretaria'), async (req, res) => {
   }
 
   try {
+    // Ownership check for non-admins
+    if (!req.user.isAdmin) {
+      const ownerCheck = await pool.query(
+        `SELECT id FROM reservations WHERE id = ANY($1::uuid[]) AND created_by != $2 LIMIT 1`,
+        [ids, req.user.id]
+      );
+      if (ownerCheck.rows.length > 0) {
+        return res.status(403).json({ error: 'No puedes cancelar reservaciones de otras secretarias' });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE reservations SET status = 'cancelled', updated_at = NOW()
        WHERE id = ANY($1::uuid[])

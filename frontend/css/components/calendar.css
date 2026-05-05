@@ -326,6 +326,9 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* Modification request popup — same style as cal-popup but wider */
+.mod-req-popup { width: 340px; }
+
 /* ── VISTA SEMANAL ── */
 .cal-week {
   overflow-x: auto;

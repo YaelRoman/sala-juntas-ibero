@@ -10,12 +10,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const user = Auth.requireRole('secretaria');
   if (!user) return;
 
+  const isSuperAdmin = !!user.isAdmin;
+
   // Load fresh data from API
   try {
-    const [users, holidays] = await Promise.all([
-      API.getUsers(),
-      API.getHolidays()
-    ]);
+    const toLoad = isSuperAdmin
+      ? [API.getUsers(), API.getHolidays()]
+      : [Promise.resolve([]), API.getHolidays()];
+    const [users, holidays] = await Promise.all(toLoad);
     Store.setState({ users, holidays });
   } catch (err) {
     console.error('Error loading admin data:', err);
@@ -27,26 +29,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── Sidebar & topbar ──────────────────────────────────── */
   const _navIdForHash = (hash) => {
     if (hash === '#usuarios')       return 'admin-users';
+    if (hash === '#solicitudes')    return 'admin-requests';
     if (hash === '#calendario')     return 'admin-config';
     if (hash === '#notificaciones') return 'admin-notif';
     if (hash === '#respaldos')      return 'admin-backup';
-    return 'admin-users';
+    return isSuperAdmin ? 'admin-users' : 'admin-config';
   };
 
   Sidebar.init(_navIdForHash(location.hash));
 
   const badge = document.getElementById('topbar-role-badge');
-  if (badge) badge.textContent = 'Secretaria';
+  if (badge) {
+    badge.textContent = isSuperAdmin ? 'Super Admin' : 'Secretaria';
+    badge.className   = `badge ${isSuperAdmin ? 'badge-warning' : 'badge-primary'} topbar__badge-role`;
+  }
 
   /* ════════════════════════════════════════════════════════
      TABS
   ════════════════════════════════════════════════════════ */
 
   const TABS = [
-    { id: 'tab-users',    section: 'section-users',    hash: '#usuarios',       label: 'Usuarios',       breadcrumb: 'Usuarios' },
+    ...(isSuperAdmin ? [
+      { id: 'tab-users',     section: 'section-users',     hash: '#usuarios',       label: 'Usuarios',    breadcrumb: 'Usuarios'          },
+      { id: 'tab-requests',  section: 'section-requests',  hash: '#solicitudes',    label: 'Solicitudes', breadcrumb: 'Solicitudes de cambio' },
+    ] : []),
     { id: 'tab-calendar', section: 'section-calendar', hash: '#calendario',     label: 'Calendario',     breadcrumb: 'Calendario Maestro' },
-    { id: 'tab-notif',    section: 'section-notif',    hash: '#notificaciones', label: 'Notificaciones', breadcrumb: 'Notificaciones' },
-    { id: 'tab-backup',   section: 'section-backup',   hash: '#respaldos',      label: 'Respaldos',      breadcrumb: 'Respaldos' },
+    { id: 'tab-notif',    section: 'section-notif',    hash: '#notificaciones', label: 'Notificaciones', breadcrumb: 'Notificaciones'     },
+    { id: 'tab-backup',   section: 'section-backup',   hash: '#respaldos',      label: 'Respaldos',      breadcrumb: 'Respaldos'          },
   ];
 
   // Section state — declared here (before _activateTab is called) to avoid TDZ errors.
@@ -80,10 +89,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (pushState) history.replaceState(null, '', tab.hash);
 
     // Lazy-init section content
-    if (tab.id === 'tab-users')    _initUsersSection();
-    if (tab.id === 'tab-calendar') _initCalendarSection();
-    if (tab.id === 'tab-notif')    _renderNotifLog();
-    if (tab.id === 'tab-backup')   _initBackupSection();
+    if (tab.id === 'tab-users')     _initUsersSection();
+    if (tab.id === 'tab-requests')  _initRequestsSection();
+    if (tab.id === 'tab-calendar')  _initCalendarSection();
+    if (tab.id === 'tab-notif')     _renderNotifLog();
+    if (tab.id === 'tab-backup')    _initBackupSection();
   }
 
   // Wire tab buttons
@@ -91,8 +101,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById(t.id)?.addEventListener('click', () => _activateTab(t.id));
   });
 
-  // Determine initial tab from hash
-  const _initialTab = TABS.find(t => t.hash === location.hash)?.id ?? 'tab-users';
+  // Determine initial tab from hash; fall back to first available tab
+  const _initialTab = TABS.find(t => t.hash === location.hash)?.id ?? TABS[0]?.id ?? 'tab-calendar';
   _activateTab(_initialTab, false);
 
   // Back/forward button support
@@ -672,6 +682,88 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="notif-entry__time">${time}</span>
         </div>`;
     }).join('');
+  }
+
+  /* ════════════════════════════════════════════════════════
+     SECTION: MODIFICATION REQUESTS  (super-admin only)
+  ════════════════════════════════════════════════════════ */
+
+  let _requestsInitialized = false;
+
+  function _initRequestsSection() {
+    _renderRequests();
+    _requestsInitialized = true;
+  }
+
+  async function _renderRequests() {
+    const container = document.getElementById('requests-list');
+    if (!container) return;
+    container.innerHTML = '<div class="notif-empty">Cargando…</div>';
+
+    try {
+      const requests = await API.getModificationRequests();
+      if (!requests.length) {
+        container.innerHTML = '<div class="notif-empty">No hay solicitudes pendientes.</div>';
+        return;
+      }
+
+      const TZ = 'America/Mexico_City';
+      const _fmt = (iso) => new Date(iso).toLocaleString('es-MX', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ
+      });
+
+      container.innerHTML = requests.map(r => `
+        <div class="req-card" data-req-id="${r.id}">
+          <div class="req-card__meta">
+            <strong>${Utils.escapeHTML(r.requester_name)}</strong> solicita cambiar la reservación de
+            <strong>${Utils.escapeHTML(r.responsible_name)}</strong> (${Utils.escapeHTML(r.area)})
+          </div>
+          <div class="req-card__times">
+            <span class="req-card__label">Actual:</span>
+            ${_fmt(r.current_start)} – ${_fmt(r.current_end)}
+          </div>
+          <div class="req-card__times">
+            <span class="req-card__label">Solicitado:</span>
+            ${_fmt(r.new_start_time)} – ${_fmt(r.new_end_time)}
+          </div>
+          ${r.reason ? `<div class="req-card__reason">"${Utils.escapeHTML(r.reason)}"</div>` : ''}
+          <div class="req-card__actions">
+            <button class="btn btn-success btn-sm req-approve" data-id="${r.id}">Aprobar</button>
+            <button class="btn btn-danger btn-sm req-reject"  data-id="${r.id}">Rechazar</button>
+          </div>
+        </div>`).join('');
+
+      container.querySelectorAll('.req-approve').forEach(btn => {
+        btn.addEventListener('click', () => _approveRequest(btn.dataset.id));
+      });
+      container.querySelectorAll('.req-reject').forEach(btn => {
+        btn.addEventListener('click', () => _rejectRequest(btn.dataset.id));
+      });
+    } catch (err) {
+      console.error('Error loading requests:', err);
+      container.innerHTML = '<div class="notif-empty">Error cargando solicitudes.</div>';
+    }
+  }
+
+  async function _approveRequest(id) {
+    try {
+      await API.approveModificationRequest(id);
+      Toast.show('Solicitud aprobada', 'success');
+      _renderRequests();
+    } catch (err) {
+      Toast.show(err.message || 'Error al aprobar', 'error');
+    }
+  }
+
+  async function _rejectRequest(id) {
+    const reason = prompt('Motivo del rechazo (opcional):') ?? '';
+    try {
+      await API.rejectModificationRequest(id, reason);
+      Toast.show('Solicitud rechazada', 'success');
+      _renderRequests();
+    } catch (err) {
+      Toast.show(err.message || 'Error al rechazar', 'error');
+    }
   }
 
 });

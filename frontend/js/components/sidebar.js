@@ -7,38 +7,42 @@
 const Sidebar = (() => {
 
   /* ── DEFINICIÓN DE ITEMS DE NAVEGACIÓN ── */
+  const _buildSecretariaNav = (isAdmin) => [
+    {
+      label: 'Principal',
+      items: [
+        { id: 'dashboard', href: 'dashboard.html', label: 'Dashboard', icon: 'grid' },
+      ]
+    },
+    {
+      label: 'Gestión',
+      items: [
+        { id: 'historial',    href: 'historial.html',    label: 'Historial',    icon: 'file-text'     },
+        { id: 'estadisticas', href: 'estadisticas.html', label: 'Estadísticas', icon: 'bar-chart-2'   },
+        { id: 'ai-panel',     href: 'ai-panel.html',     label: 'Asistente IA', icon: 'message-square' },
+      ]
+    },
+    {
+      label: 'Administración',
+      items: [
+        ...(isAdmin ? [
+          { id: 'admin-users',     href: 'admin.html#usuarios',        label: 'Usuarios',          icon: 'users'    },
+          { id: 'admin-requests',  href: 'admin.html#solicitudes',     label: 'Solicitudes',       icon: 'inbox'    },
+        ] : []),
+        { id: 'admin-config',  href: 'admin.html#calendario',    label: 'Festivos / Cierres', icon: 'settings' },
+        { id: 'admin-notif',   href: 'admin.html#notificaciones', label: 'Notificaciones',    icon: 'bell'     },
+        { id: 'admin-backup',  href: 'admin.html#respaldos',     label: 'Respaldos',         icon: 'download' },
+      ]
+    }
+  ];
+
   const NAV = {
-    secretaria: [
-      {
-        label: 'Principal',
-        items: [
-          { id: 'dashboard',   href: 'dashboard.html',   label: 'Dashboard',         icon: 'grid' },
-        ]
-      },
-      {
-        label: 'Gestión',
-        items: [
-          { id: 'historial',     href: 'historial.html',     label: 'Historial',       icon: 'file-text' },
-          { id: 'estadisticas',  href: 'estadisticas.html',  label: 'Estadísticas',    icon: 'bar-chart-2' },
-          { id: 'ai-panel',      href: 'ai-panel.html',      label: 'Asistente IA',    icon: 'message-square' },
-        ]
-      },
-      {
-        label: 'Administración',
-        items: [
-          { id: 'admin-users',   href: 'admin.html#usuarios',          label: 'Usuarios',          icon: 'users'    },
-          { id: 'admin-config',  href: 'admin.html#calendario',    label: 'Festivos / Cierres', icon: 'settings' },
-          { id: 'admin-notif',   href: 'admin.html#notificaciones', label: 'Notificaciones',    icon: 'bell'     },
-          { id: 'admin-backup',  href: 'admin.html#respaldos',     label: 'Respaldos',         icon: 'download' },
-        ]
-      }
-    ],
     academico: [
       {
         label: 'Principal',
         items: [
-          { id: 'calendar',   href: 'calendar.html',   label: 'Calendario',  icon: 'calendar' },
-          { id: 'historial',  href: 'historial.html',  label: 'Historial',   icon: 'file-text' },
+          { id: 'calendar',  href: 'calendar.html',  label: 'Calendario', icon: 'calendar'   },
+          { id: 'historial', href: 'historial.html', label: 'Historial',  icon: 'file-text'  },
         ]
       }
     ]
@@ -57,6 +61,7 @@ const Sidebar = (() => {
     'log-out':  `<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>`,
     download:   `<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>`,
     bell:       `<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>`,
+    inbox:      `<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>`,
   };
 
   const _icon = (name) =>
@@ -67,10 +72,11 @@ const Sidebar = (() => {
 
   /* ── RENDER ── */
   const _buildHTML = (user, activeId) => {
-    const role    = user?.role || 'academico';
-    const sections = NAV[role] || NAV.academico;
-    const initials = (user?.name || '?').charAt(0).toUpperCase();
-    const roleLabel = role === 'secretaria' ? 'Secretaria' : 'Académico';
+    const role     = user?.role || 'academico';
+    const isAdmin  = !!user?.isAdmin;
+    const sections = role === 'secretaria' ? _buildSecretariaNav(isAdmin) : (NAV[role] || NAV.academico);
+    const initials  = (user?.name || '?').charAt(0).toUpperCase();
+    const roleLabel = isAdmin ? 'Super Admin' : (role === 'secretaria' ? 'Secretaria' : 'Académico');
 
     const navHTML = sections.map(section => `
       <div class="sidebar__nav-section">

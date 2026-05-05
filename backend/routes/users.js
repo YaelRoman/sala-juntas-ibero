@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 const requireRole = require('../middleware/requireRole');
+const { requireSuperAdmin } = require('../middleware/requireRole');
 const {
   sendEmail,
   welcomeEmail,
@@ -15,7 +16,7 @@ const router = express.Router();
 // All user routes require authentication
 router.use(auth);
 
-// GET /api/users - Get all users (secretaria only)
+// GET /api/users - Get all users (any secretaria; management routes below are super-admin only)
 router.get('/', requireRole('secretaria'), async (req, res) => {
   try {
     const result = await pool.query(
@@ -29,8 +30,8 @@ router.get('/', requireRole('secretaria'), async (req, res) => {
   }
 });
 
-// POST /api/users - Create new user (secretaria only)
-router.post('/', requireRole('secretaria'), async (req, res) => {
+// POST /api/users - Create new user (super-admin only)
+router.post('/', requireSuperAdmin, async (req, res) => {
   const { name, email, password, role, is_admin } = req.body;
 
   if (!name || !email || !password || !role) {
@@ -82,8 +83,8 @@ router.post('/', requireRole('secretaria'), async (req, res) => {
   }
 });
 
-// PUT /api/users/:id - Update user (secretaria only)
-router.put('/:id', requireRole('secretaria'), async (req, res) => {
+// PUT /api/users/:id - Update user (super-admin only)
+router.put('/:id', requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
   const { name, email, password, role, is_admin } = req.body;
 
@@ -142,8 +143,8 @@ router.put('/:id', requireRole('secretaria'), async (req, res) => {
   }
 });
 
-// PATCH /api/users/:id/deactivate - Deactivate user (secretaria only)
-router.patch('/:id/deactivate', requireRole('secretaria'), async (req, res) => {
+// PATCH /api/users/:id/deactivate - Deactivate user (super-admin only)
+router.patch('/:id/deactivate', requireSuperAdmin, async (req, res) => {
   const { id } = req.params;
 
   // Cannot deactivate self
