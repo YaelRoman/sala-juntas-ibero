@@ -450,6 +450,15 @@ const ReservationModal = (() => {
       if (isNew) _overlay.querySelector('#rmodal-nu-name')?.focus();
     });
 
+    // Clicking outside the new-user panel (but inside the modal) collapses it
+    _overlay.querySelector('.rmodal__panel')?.addEventListener('click', (e) => {
+      if (newUserPanel && !newUserPanel.classList.contains('hidden') &&
+          !newUserPanel.contains(e.target) && !respSel?.contains(e.target)) {
+        respSel.value = '';
+        newUserPanel.classList.add('hidden');
+      }
+    });
+
     _overlay.querySelector('#rmodal-nu-cancel')?.addEventListener('click', () => {
       respSel.value = '';
       newUserPanel?.classList.add('hidden');

@@ -191,6 +191,29 @@ function reservationAdminCancelledEmail(reservation, adminName) {
   };
 }
 
+function modificationRequestReceivedEmail(adminName, requesterName, reservation, newStart, newEnd, reason) {
+  const currentDate  = _formatDate(reservation.start_time);
+  const currentStart = _formatTime(reservation.start_time);
+  const currentEnd   = _formatTime(reservation.end_time);
+  const newDateStr   = _formatDate(newStart);
+  const newStartStr  = _formatTime(newStart);
+  const newEndStr    = _formatTime(newEnd);
+  return {
+    subject: `Nueva solicitud de cambio de horario — Sala de Juntas Ibero`,
+    html: _layout('#0277bd', 'Nueva solicitud de cambio de horario',
+      `<p>Hola <strong>${_esc(adminName)}</strong>,</p>
+       <p><strong>${_esc(requesterName)}</strong> solicita cambiar el horario de la siguiente reservación:</p>
+       <table style="width:100%;border-collapse:collapse;font-size:14px;">
+         <tr><td style="padding:6px 0;color:#555;">Responsable</td><td style="padding:6px 0;font-weight:600;">${_esc(reservation.responsible_name)}</td></tr>
+         <tr><td style="padding:6px 0;color:#555;">Área</td><td style="padding:6px 0;">${_esc(reservation.area)}</td></tr>
+         <tr><td style="padding:6px 0;color:#555;">Horario actual</td><td style="padding:6px 0;">${currentDate} ${currentStart}–${currentEnd}</td></tr>
+         <tr><td style="padding:6px 0;color:#555;">Horario solicitado</td><td style="padding:6px 0;font-weight:600;">${newDateStr} ${newStartStr}–${newEndStr}</td></tr>
+         ${reason ? `<tr><td style="padding:6px 0;color:#555;">Motivo</td><td style="padding:6px 0;font-style:italic;">${_esc(reason)}</td></tr>` : ''}
+       </table>
+       <p style="margin-top:16px;font-size:13px;color:#555;">Ingresa al sistema para aprobar o rechazar esta solicitud.</p>`),
+  };
+}
+
 function modificationRequestApprovedEmail(requesterName, reservation) {
   return {
     subject: `Solicitud de cambio aprobada — Sala de Juntas Ibero`,
@@ -219,6 +242,7 @@ module.exports = {
   reservationCancelledEmail,
   reservationAdminModifiedEmail,
   reservationAdminCancelledEmail,
+  modificationRequestReceivedEmail,
   modificationRequestApprovedEmail,
   modificationRequestRejectedEmail,
   passwordResetEmail,

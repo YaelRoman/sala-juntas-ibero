@@ -79,7 +79,7 @@ const ModificationRequestModal = (() => {
         <div>
           <label class="form-label" for="mod-req-date"
                  style="font-size:var(--font-size-xs);margin-bottom:var(--space-1);">Nueva fecha</label>
-          <input type="date" id="mod-req-date" class="form-control form-control--sm"
+          <input type="date" id="mod-req-date" class="form-input"
                  value="${dateISO}" min="${Utils.today()}" />
         </div>
 
@@ -88,13 +88,11 @@ const ModificationRequestModal = (() => {
           <label class="form-label"
                  style="font-size:var(--font-size-xs);margin-bottom:var(--space-1);">Nuevo horario</label>
           <div style="display:flex;align-items:center;gap:var(--space-2);">
-            <select class="form-select form-select--sm" id="mod-req-start" aria-label="Hora inicio"
-                    style="flex:1;">
+            <select class="form-select" id="mod-req-start" aria-label="Hora inicio" style="flex:1;">
               ${_timeOptions(startVal)}
             </select>
             <span style="color:var(--color-secondary-light);font-size:var(--font-size-xs);">→</span>
-            <select class="form-select form-select--sm" id="mod-req-end" aria-label="Hora fin"
-                    style="flex:1;">
+            <select class="form-select" id="mod-req-end" aria-label="Hora fin" style="flex:1;">
               ${_timeOptions(endVal)}
             </select>
           </div>
@@ -105,9 +103,9 @@ const ModificationRequestModal = (() => {
         <div>
           <label class="form-label" for="mod-req-reason"
                  style="font-size:var(--font-size-xs);margin-bottom:var(--space-1);">Motivo (opcional)</label>
-          <textarea id="mod-req-reason" class="form-control" rows="2" maxlength="300"
+          <textarea id="mod-req-reason" class="form-textarea" rows="2" maxlength="300"
                     placeholder="Explica brevemente el motivo del cambio…"
-                    style="font-size:var(--font-size-xs);resize:none;"></textarea>
+                    style="resize:none;"></textarea>
         </div>
 
       </div>

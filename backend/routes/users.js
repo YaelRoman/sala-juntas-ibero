@@ -30,8 +30,8 @@ router.get('/', requireRole('secretaria'), async (req, res) => {
   }
 });
 
-// POST /api/users - Create new user (super-admin only)
-router.post('/', requireSuperAdmin, async (req, res) => {
+// POST /api/users - Create new user (any secretaria)
+router.post('/', requireRole('secretaria'), async (req, res) => {
   const { name, email, password, role, is_admin } = req.body;
 
   if (!name || !email || !password || !role) {

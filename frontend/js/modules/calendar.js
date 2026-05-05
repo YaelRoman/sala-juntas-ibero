@@ -183,11 +183,12 @@ const Calendar = (() => {
   /* ════════════════════════════════════════
      ACCESSORS
      ════════════════════════════════════════ */
-  const getCurrentYear  = () => _year;
-  const getCurrentMonth = () => _month;
-  const getCurrentView  = () => _view;
-  const getHighlightDate = () => _highlightDate;
-  const setHighlightDate = (d) => { _highlightDate = d; };
+  const getCurrentYear      = () => _year;
+  const getCurrentMonth     = () => _month;
+  const getCurrentView      = () => _view;
+  const getCurrentWeekStart = () => _weekStart;
+  const getHighlightDate    = () => _highlightDate;
+  const setHighlightDate    = (d) => { _highlightDate = d; };
 
   /* ════════════════════════════════════════
      PRIVATE HELPERS
@@ -230,6 +231,7 @@ const Calendar = (() => {
     getCurrentYear,
     getCurrentMonth,
     getCurrentView,
+    getCurrentWeekStart,
     getHighlightDate,
     setHighlightDate,
   };

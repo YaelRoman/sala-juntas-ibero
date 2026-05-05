@@ -5,6 +5,7 @@ const requireRole = require('../middleware/requireRole');
 const { requireSuperAdmin } = require('../middleware/requireRole');
 const {
   sendEmail,
+  modificationRequestReceivedEmail,
   modificationRequestApprovedEmail,
   modificationRequestRejectedEmail,
   reservationUpdatedEmail,
@@ -75,6 +76,17 @@ router.post('/', requireRole('secretaria'), async (req, res) => {
        VALUES ($1, $2, $3, $4)`,
       [req.user.id, 'create_modification_request', 'modification_requests', result.rows[0].id]
     );
+
+    // Notify all active super-admins (non-blocking)
+    const adminsQ = await pool.query(
+      `SELECT name, email FROM users WHERE is_admin = true AND active = true`
+    );
+    for (const admin of adminsQ.rows) {
+      const { subject, html } = modificationRequestReceivedEmail(
+        admin.name, req.user.name, reservation, new_start_time, new_end_time, reason
+      );
+      sendEmail(admin.email, subject, html);
+    }
 
     res.status(201).json(result.rows[0]);
   } catch (err) {

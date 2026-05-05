@@ -434,7 +434,9 @@ function _initEventListeners() {
     _setViewActive('month');
     Calendar.setHighlightDate(null);
     CalendarWeek.clearSelection();
-    Calendar.renderMonth(Calendar.getCurrentYear(), Calendar.getCurrentMonth());
+    const ws = Calendar.getCurrentWeekStart();
+    const target = ws ?? new Date();
+    Calendar.renderMonth(target.getFullYear(), target.getMonth());
     _hideSelectionBar();
     MiniCalendar.clearHighlight();
     _showQuickNav(true);
